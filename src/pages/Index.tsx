@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { DatabaseIcon, UploadIcon, Settings2Icon } from "lucide-react";
+import { DatabaseIcon, UploadIcon, Settings2Icon, ServerIcon } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DataTable from "@/components/DataTable";
 import FileUpload from "@/components/FileUpload";
 import ApiConfig from "@/components/ApiConfig";
+import SqlConfig from "@/components/SqlConfig";
 
 const Index = () => {
   const [data, setData] = useState<any[]>([]);
@@ -50,6 +51,10 @@ const Index = () => {
                 <Settings2Icon className="w-4 h-4" />
                 API Configuratie
               </TabsTrigger>
+              <TabsTrigger value="sql" className="gap-2">
+                <ServerIcon className="w-4 h-4" />
+                SQL Server
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="upload" className="space-y-6">
@@ -58,6 +63,10 @@ const Index = () => {
 
             <TabsContent value="api" className="space-y-6">
               <ApiConfig onDataLoaded={handleDataLoaded} />
+            </TabsContent>
+
+            <TabsContent value="sql" className="space-y-6">
+              <SqlConfig onDataLoaded={handleDataLoaded} />
             </TabsContent>
           </Tabs>
 
