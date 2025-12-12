@@ -5,20 +5,16 @@ import DataTable from "@/components/DataTable";
 import FileUpload from "@/components/FileUpload";
 import ApiConfig from "@/components/ApiConfig";
 import SqlConfig from "@/components/SqlConfig";
-
 const Index = () => {
   const [data, setData] = useState<any[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
-
   const handleDataLoaded = (loadedData: any[], loadedColumns: string[]) => {
     setData(loadedData);
     setColumns(loadedColumns);
   };
-
-  return (
-    <div className="flex h-screen bg-background">
+  return <div className="flex h-screen bg-background">
       {/* Sidebar */}
-      <aside className="w-64 bg-sidebar border-r border-sidebar-border">
+      <aside className="w-64 border-r border-sidebar-border bg-[#0c3a83]">
         <div className="p-6">
           <div className="flex items-center gap-2 mb-8">
             <DatabaseIcon className="w-6 h-6 text-sidebar-primary" />
@@ -70,15 +66,11 @@ const Index = () => {
             </TabsContent>
           </Tabs>
 
-          {data.length > 0 && (
-            <div className="mt-8">
+          {data.length > 0 && <div className="mt-8">
               <DataTable data={data} columns={columns} />
-            </div>
-          )}
+            </div>}
         </div>
       </main>
-    </div>
-  );
+    </div>;
 };
-
 export default Index;
