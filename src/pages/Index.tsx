@@ -22,7 +22,7 @@ const Index = () => {
           </div>
           <nav className="space-y-2">
             <div className="text-sm text-sidebar-foreground/60 font-medium mb-2">Data Bronnen</div>
-            <a href="#" className="block px-3 py-2 rounded-md bg-sidebar-accent text-sidebar-accent-foreground">
+            <a href="#" className="block px-3 py-2 rounded-md text-sidebar-accent-foreground bg-[#356bc8]">
               Lokale Data
             </a>
           </nav>
