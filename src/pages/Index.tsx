@@ -18,7 +18,7 @@ const Index = () => {
         <div className="p-6">
           <div className="flex items-center gap-2 mb-8">
             <DatabaseIcon className="w-6 h-6 text-sidebar-primary" />
-            <h1 className="text-xl font-bold text-sidebar-foreground">SQL Viewer</h1>
+            <h1 className="text-xl font-bold text-sidebar-foreground">DMRI</h1>
           </div>
           <nav className="space-y-2">
             <div className="text-sm text-sidebar-foreground/60 font-medium mb-2">Data Bronnen</div>
