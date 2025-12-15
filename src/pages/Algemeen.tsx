@@ -1,11 +1,14 @@
 import { useState } from "react";
-import { DatabaseIcon, UploadIcon, Settings2Icon, ServerIcon } from "lucide-react";
+import { Link } from "react-router-dom";
+import { DatabaseIcon, UploadIcon, Settings2Icon, ServerIcon, ArrowLeft } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import DataTable from "@/components/DataTable";
 import FileUpload from "@/components/FileUpload";
 import ApiConfig from "@/components/ApiConfig";
 import SqlConfig from "@/components/SqlConfig";
-const Index = () => {
+
+const Algemeen = () => {
   const [data, setData] = useState<any[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
   const handleDataLoaded = (loadedData: any[], loadedColumns: string[]) => {
@@ -16,9 +19,14 @@ const Index = () => {
       {/* Sidebar */}
       <aside className="w-64 border-r border-sidebar-border bg-[#0c3a83]">
         <div className="p-6">
-          <div className="flex items-center gap-2 mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <Link to="/">
+              <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 -ml-2">
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+            </Link>
             <DatabaseIcon className="w-6 h-6 text-sidebar-primary" />
-            <h1 className="text-xl font-bold text-sidebar-foreground">DMRI</h1>
+            <h1 className="text-xl font-bold text-sidebar-foreground">Algemeen</h1>
           </div>
           <nav className="space-y-2">
             <div className="text-sm text-sidebar-foreground/60 font-medium mb-2">Data Bronnen</div>
@@ -73,4 +81,5 @@ const Index = () => {
       </main>
     </div>;
 };
-export default Index;
+
+export default Algemeen;
