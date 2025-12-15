@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Package, Users, Calendar, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,16 +10,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-
-interface Order {
-  ORDERNO: number;
-  OFFERNO: number;
-  ALIAS: string;
-  NAME: string;
-  CUSTOMERREFERENCE1: string;
-  CUSTOMERREFERENCE2: string;
-  DELIVERYDATE?: string;
-}
+import { ordersData, Order } from "@/data/orders";
 
 const COLORS = [
   "hsl(var(--primary))",
@@ -33,21 +24,8 @@ const COLORS = [
 ];
 
 const PanelenDashboard = () => {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch("/orders.json")
-      .then((response) => response.json())
-      .then((data) => {
-        setOrders(data.Orders || []);
-        setLoading(false);
-      })
-      .catch((error) => {
-        console.error("Error loading orders:", error);
-        setLoading(false);
-      });
-  }, []);
+  const orders = ordersData;
+  const loading = false;
 
   // Calculate statistics
   const totalOrders = orders.length;
