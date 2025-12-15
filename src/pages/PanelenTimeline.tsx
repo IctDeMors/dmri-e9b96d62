@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,33 +8,10 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, AreaChart, Area } from "recharts";
-
-interface Order {
-  ORDERNO: number;
-  OFFERNO: number;
-  ALIAS: string;
-  NAME: string;
-  CUSTOMERREFERENCE1: string;
-  CUSTOMERREFERENCE2: string;
-  DELIVERYDATE?: string;
-}
+import { ordersData, Order } from "@/data/orders";
 
 const PanelenTimeline = () => {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch("/orders.json")
-      .then((response) => response.json())
-      .then((data) => {
-        setOrders(data.Orders || []);
-        setLoading(false);
-      })
-      .catch((error) => {
-        console.error("Error loading orders:", error);
-        setLoading(false);
-      });
-  }, []);
+  const orders = ordersData;
 
   // Group orders by date
   const dateCounts = orders.reduce((acc, order) => {
@@ -82,13 +58,6 @@ const PanelenTimeline = () => {
     },
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-muted-foreground">Laden...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-background">
