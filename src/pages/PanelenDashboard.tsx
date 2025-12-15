@@ -117,7 +117,7 @@ const PanelenDashboard = () => {
       <header className="border-b border-border bg-[#0c3a83]">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center gap-3">
-            <Link to="/">
+            <Link to="/panelen">
               <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 -ml-2">
                 <ArrowLeft className="w-5 h-5" />
               </Button>
