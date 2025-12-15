@@ -15,7 +15,13 @@ export interface BathroomModel {
   id: string;
   name: string;
   type: string;
-  dimensions: string;
+  breedte: string;
+  diepte: string;
+  hoogte: string;
+  heeftDouche: boolean;
+  heeftToilet: boolean;
+  heeftBadmeubel: boolean;
+  kleurlijn: "blackline" | "blanc_oak" | "white_oak" | "";
   notes: string;
 }
 
