@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { ArrowLeft, Plus, Trash2, Edit, Bath } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit, Bath, Copy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import type { Project, BathroomModel } from "./MyCubyProjecten";
@@ -107,6 +107,20 @@ const MyCubyProjectDetail = () => {
     const updatedModels = project.bathroomModels.filter((m) => m.id !== modelId);
     saveProject({ ...project, bathroomModels: updatedModels, updatedAt: new Date().toISOString() });
     toast({ title: "Verwijderd", description: "Badkamer model verwijderd" });
+  };
+
+  const handleDuplicate = (model: BathroomModel) => {
+    if (!project) return;
+    const duplicatedModel: BathroomModel = {
+      id: crypto.randomUUID(),
+      name: `${model.name} (kopie)`,
+      type: model.type,
+      dimensions: model.dimensions,
+      notes: model.notes,
+    };
+    const updatedModels = [...project.bathroomModels, duplicatedModel];
+    saveProject({ ...project, bathroomModels: updatedModels, updatedAt: new Date().toISOString() });
+    toast({ title: "Gekopieerd", description: "Badkamer model gedupliceerd" });
   };
 
   const handleDialogClose = (open: boolean) => {
@@ -251,10 +265,13 @@ const MyCubyProjectDetail = () => {
                         <div className="flex items-start justify-between">
                           <CardTitle className="text-base">{model.name}</CardTitle>
                           <div className="flex gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(model)}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDuplicate(model)} title="Dupliceren">
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(model)} title="Bewerken">
                               <Edit className="h-3 w-3" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(model.id)}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(model.id)} title="Verwijderen">
                               <Trash2 className="h-3 w-3 text-destructive" />
                             </Button>
                           </div>
