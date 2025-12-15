@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowLeft, Plus, Trash2, Edit, Bath, Copy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -27,13 +29,30 @@ const statusColors = {
   on_hold: "bg-muted text-muted-foreground",
 };
 
+const kleurlijnLabels = {
+  blackline: "Blackline",
+  blanc_oak: "Blanc Oak",
+  white_oak: "White Oak",
+};
+
 const MyCubyProjectDetail = () => {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const [project, setProject] = useState<Project | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingModel, setEditingModel] = useState<BathroomModel | null>(null);
-  const [formData, setFormData] = useState({ name: "", type: "", dimensions: "", notes: "" });
+  const [formData, setFormData] = useState({ 
+    name: "", 
+    type: "", 
+    breedte: "", 
+    diepte: "", 
+    hoogte: "", 
+    heeftDouche: false, 
+    heeftToilet: false, 
+    heeftBadmeubel: false, 
+    kleurlijn: "" as BathroomModel["kleurlijn"],
+    notes: "" 
+  });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -74,7 +93,19 @@ const MyCubyProjectDetail = () => {
     if (editingModel) {
       updatedModels = project.bathroomModels.map((m) =>
         m.id === editingModel.id
-          ? { ...m, name: formData.name, type: formData.type, dimensions: formData.dimensions, notes: formData.notes }
+          ? { 
+              ...m, 
+              name: formData.name, 
+              type: formData.type, 
+              breedte: formData.breedte,
+              diepte: formData.diepte,
+              hoogte: formData.hoogte,
+              heeftDouche: formData.heeftDouche,
+              heeftToilet: formData.heeftToilet,
+              heeftBadmeubel: formData.heeftBadmeubel,
+              kleurlijn: formData.kleurlijn,
+              notes: formData.notes 
+            }
           : m
       );
       toast({ title: "Succes", description: "Badkamer model bijgewerkt" });
@@ -83,7 +114,13 @@ const MyCubyProjectDetail = () => {
         id: crypto.randomUUID(),
         name: formData.name,
         type: formData.type,
-        dimensions: formData.dimensions,
+        breedte: formData.breedte,
+        diepte: formData.diepte,
+        hoogte: formData.hoogte,
+        heeftDouche: formData.heeftDouche,
+        heeftToilet: formData.heeftToilet,
+        heeftBadmeubel: formData.heeftBadmeubel,
+        kleurlijn: formData.kleurlijn,
         notes: formData.notes,
       };
       updatedModels = [...project.bathroomModels, newModel];
@@ -91,14 +128,25 @@ const MyCubyProjectDetail = () => {
     }
 
     saveProject({ ...project, bathroomModels: updatedModels, updatedAt: now });
-    setFormData({ name: "", type: "", dimensions: "", notes: "" });
+    setFormData({ name: "", type: "", breedte: "", diepte: "", hoogte: "", heeftDouche: false, heeftToilet: false, heeftBadmeubel: false, kleurlijn: "", notes: "" });
     setEditingModel(null);
     setIsDialogOpen(false);
   };
 
   const handleEdit = (model: BathroomModel) => {
     setEditingModel(model);
-    setFormData({ name: model.name, type: model.type, dimensions: model.dimensions, notes: model.notes });
+    setFormData({ 
+      name: model.name, 
+      type: model.type, 
+      breedte: model.breedte || "",
+      diepte: model.diepte || "",
+      hoogte: model.hoogte || "",
+      heeftDouche: model.heeftDouche || false,
+      heeftToilet: model.heeftToilet || false,
+      heeftBadmeubel: model.heeftBadmeubel || false,
+      kleurlijn: model.kleurlijn || "",
+      notes: model.notes 
+    });
     setIsDialogOpen(true);
   };
 
@@ -115,7 +163,13 @@ const MyCubyProjectDetail = () => {
       id: crypto.randomUUID(),
       name: `${model.name} (kopie)`,
       type: model.type,
-      dimensions: model.dimensions,
+      breedte: model.breedte,
+      diepte: model.diepte,
+      hoogte: model.hoogte,
+      heeftDouche: model.heeftDouche,
+      heeftToilet: model.heeftToilet,
+      heeftBadmeubel: model.heeftBadmeubel,
+      kleurlijn: model.kleurlijn,
       notes: model.notes,
     };
     const updatedModels = [...project.bathroomModels, duplicatedModel];
@@ -126,7 +180,7 @@ const MyCubyProjectDetail = () => {
   const handleDialogClose = (open: boolean) => {
     setIsDialogOpen(open);
     if (!open) {
-      setFormData({ name: "", type: "", dimensions: "", notes: "" });
+      setFormData({ name: "", type: "", breedte: "", diepte: "", hoogte: "", heeftDouche: false, heeftToilet: false, heeftBadmeubel: false, kleurlijn: "", notes: "" });
       setEditingModel(null);
     }
   };
@@ -221,14 +275,76 @@ const MyCubyProjectDetail = () => {
                           />
                         </div>
                       </div>
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="breedte">Breedte (mm)</Label>
+                          <Input
+                            id="breedte"
+                            value={formData.breedte}
+                            onChange={(e) => setFormData({ ...formData, breedte: e.target.value })}
+                            placeholder="bijv. 2400"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="diepte">Diepte (mm)</Label>
+                          <Input
+                            id="diepte"
+                            value={formData.diepte}
+                            onChange={(e) => setFormData({ ...formData, diepte: e.target.value })}
+                            placeholder="bijv. 1800"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="hoogte">Hoogte (mm)</Label>
+                          <Input
+                            id="hoogte"
+                            value={formData.hoogte}
+                            onChange={(e) => setFormData({ ...formData, hoogte: e.target.value })}
+                            placeholder="bijv. 2500"
+                          />
+                        </div>
+                      </div>
                       <div className="space-y-2">
-                        <Label htmlFor="dimensions">Afmetingen</Label>
-                        <Input
-                          id="dimensions"
-                          value={formData.dimensions}
-                          onChange={(e) => setFormData({ ...formData, dimensions: e.target.value })}
-                          placeholder="bijv. 2.4m x 1.8m"
-                        />
+                        <Label>Kleurlijn</Label>
+                        <Select value={formData.kleurlijn} onValueChange={(v) => setFormData({ ...formData, kleurlijn: v as BathroomModel["kleurlijn"] })}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecteer kleurlijn" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="blackline">Blackline</SelectItem>
+                            <SelectItem value="blanc_oak">Blanc Oak</SelectItem>
+                            <SelectItem value="white_oak">White Oak</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-3">
+                        <Label>Onderdelen</Label>
+                        <div className="flex flex-wrap gap-6">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox 
+                              id="douche" 
+                              checked={formData.heeftDouche} 
+                              onCheckedChange={(c) => setFormData({ ...formData, heeftDouche: !!c })} 
+                            />
+                            <Label htmlFor="douche" className="font-normal">Douche</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Checkbox 
+                              id="toilet" 
+                              checked={formData.heeftToilet} 
+                              onCheckedChange={(c) => setFormData({ ...formData, heeftToilet: !!c })} 
+                            />
+                            <Label htmlFor="toilet" className="font-normal">Toilet</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Checkbox 
+                              id="badmeubel" 
+                              checked={formData.heeftBadmeubel} 
+                              onCheckedChange={(c) => setFormData({ ...formData, heeftBadmeubel: !!c })} 
+                            />
+                            <Label htmlFor="badmeubel" className="font-normal">Badmeubel</Label>
+                          </div>
+                        </div>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="notes">Notities</Label>
@@ -237,7 +353,7 @@ const MyCubyProjectDetail = () => {
                           value={formData.notes}
                           onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                           placeholder="Aanvullende specificaties of opmerkingen"
-                          rows={3}
+                          rows={2}
                         />
                       </div>
                       <div className="flex justify-end gap-2">
@@ -277,9 +393,17 @@ const MyCubyProjectDetail = () => {
                           </div>
                         </div>
                       </CardHeader>
-                      <CardContent className="text-sm space-y-1">
+                      <CardContent className="text-sm space-y-2">
                         {model.type && <p><span className="text-muted-foreground">Type:</span> {model.type}</p>}
-                        {model.dimensions && <p><span className="text-muted-foreground">Afmetingen:</span> {model.dimensions}</p>}
+                        {(model.breedte || model.diepte || model.hoogte) && (
+                          <p><span className="text-muted-foreground">Afmetingen:</span> {model.breedte || "-"} x {model.diepte || "-"} x {model.hoogte || "-"} mm</p>
+                        )}
+                        {model.kleurlijn && <p><span className="text-muted-foreground">Kleurlijn:</span> {kleurlijnLabels[model.kleurlijn]}</p>}
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {model.heeftDouche && <Badge variant="secondary" className="text-xs">Douche</Badge>}
+                          {model.heeftToilet && <Badge variant="secondary" className="text-xs">Toilet</Badge>}
+                          {model.heeftBadmeubel && <Badge variant="secondary" className="text-xs">Badmeubel</Badge>}
+                        </div>
                         {model.notes && <p className="text-muted-foreground text-xs mt-2">{model.notes}</p>}
                       </CardContent>
                     </Card>
