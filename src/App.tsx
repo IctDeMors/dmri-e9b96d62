@@ -9,6 +9,8 @@ import DepartmentPage from "./pages/DepartmentPage";
 import PanelenIndex from "./pages/PanelenIndex";
 import PanelenDashboard from "./pages/PanelenDashboard";
 import PanelenTimeline from "./pages/PanelenTimeline";
+import MyCubyIndex from "./pages/MyCubyIndex";
+import MyCubyProjecten from "./pages/MyCubyProjecten";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,7 +29,8 @@ const App = () => (
           <Route path="/panelen/dashboard" element={<PanelenDashboard />} />
           <Route path="/panelen/tijdlijn" element={<PanelenTimeline />} />
           <Route path="/units" element={<DepartmentPage />} />
-          <Route path="/mycuby" element={<DepartmentPage />} />
+          <Route path="/mycuby" element={<MyCubyIndex />} />
+          <Route path="/mycuby/projecten" element={<MyCubyProjecten />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
