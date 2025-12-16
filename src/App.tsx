@@ -12,6 +12,7 @@ import PanelenTimeline from "./pages/PanelenTimeline";
 import MyCubyIndex from "./pages/MyCubyIndex";
 import MyCubyProjecten from "./pages/MyCubyProjecten";
 import MyCubyProjectDetail from "./pages/MyCubyProjectDetail";
+import MyCubyModellen from "./pages/MyCubyModellen";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,6 +34,7 @@ const App = () => (
           <Route path="/mycuby" element={<MyCubyIndex />} />
           <Route path="/mycuby/projecten" element={<MyCubyProjecten />} />
           <Route path="/mycuby/projecten/:projectId" element={<MyCubyProjectDetail />} />
+          <Route path="/mycuby/modellen" element={<MyCubyModellen />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
