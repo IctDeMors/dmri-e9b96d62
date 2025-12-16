@@ -7,45 +7,69 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, AreaChart, Area } from "recharts";
-import { ordersData, Order } from "@/data/orders";
+import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from "recharts";
+import { ordersData } from "@/data/orders";
+import { startOfWeek, endOfWeek, addWeeks, format, parseISO, getISOWeek, getYear } from "date-fns";
+import { nl } from "date-fns/locale";
 
 const PanelenTimeline = () => {
   const orders = ordersData;
 
-  // Group orders by date
-  const dateCounts = orders.reduce((acc, order) => {
-    if (order.DELIVERYDATE) {
-      const date = order.DELIVERYDATE.split("T")[0];
-      acc[date] = (acc[date] || 0) + 1;
-    }
-    return acc;
-  }, {} as Record<string, number>);
+  // Get all delivery dates
+  const deliveryDates = orders
+    .filter(order => order.DELIVERYDATE)
+    .map(order => parseISO(order.DELIVERYDATE!.split("T")[0]));
 
-  // Create timeline data sorted by date
-  const timelineData = Object.entries(dateCounts)
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([date, count]) => ({
-      date,
-      displayDate: new Date(date).toLocaleDateString("nl-NL", {
-        day: "numeric",
-        month: "short",
-      }),
-      fullDate: new Date(date).toLocaleDateString("nl-NL", {
-        weekday: "long",
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      }),
-      orders: count,
-    }));
+  // Find min and max dates
+  const minDate = deliveryDates.length > 0 ? new Date(Math.min(...deliveryDates.map(d => d.getTime()))) : new Date();
+  const maxDate = deliveryDates.length > 0 ? new Date(Math.max(...deliveryDates.map(d => d.getTime()))) : new Date();
+
+  // Get start of first week and end of last week
+  const firstWeekStart = startOfWeek(minDate, { weekStartsOn: 1 });
+  const lastWeekEnd = endOfWeek(maxDate, { weekStartsOn: 1 });
+
+  // Group orders by week
+  const weekCounts: Record<string, number> = {};
+  orders.forEach(order => {
+    if (order.DELIVERYDATE) {
+      const date = parseISO(order.DELIVERYDATE.split("T")[0]);
+      const weekStart = startOfWeek(date, { weekStartsOn: 1 });
+      const weekKey = format(weekStart, "yyyy-MM-dd");
+      weekCounts[weekKey] = (weekCounts[weekKey] || 0) + 1;
+    }
+  });
+
+  // Generate all weeks including empty ones
+  const weeklyData: { weekKey: string; weekStart: Date; weekEnd: Date; displayWeek: string; fullWeek: string; orders: number }[] = [];
+  let currentWeek = firstWeekStart;
+  
+  while (currentWeek <= lastWeekEnd) {
+    const weekKey = format(currentWeek, "yyyy-MM-dd");
+    const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
+    const weekNum = getISOWeek(currentWeek);
+    const year = getYear(currentWeek);
+    
+    weeklyData.push({
+      weekKey,
+      weekStart: currentWeek,
+      weekEnd,
+      displayWeek: `W${weekNum}`,
+      fullWeek: `Week ${weekNum}, ${year} (${format(currentWeek, "d MMM", { locale: nl })} - ${format(weekEnd, "d MMM", { locale: nl })})`,
+      orders: weekCounts[weekKey] || 0,
+    });
+    
+    currentWeek = addWeeks(currentWeek, 1);
+  }
 
   // Calculate cumulative orders
   let cumulative = 0;
-  const cumulativeData = timelineData.map((item) => {
+  const cumulativeData = weeklyData.map((item) => {
     cumulative += item.orders;
     return { ...item, cumulative };
   });
+
+  const totalOrders = cumulativeData.length > 0 ? cumulativeData[cumulativeData.length - 1].cumulative : 0;
+  const weeksWithOrders = weeklyData.filter(w => w.orders > 0).length;
 
   const chartConfig = {
     orders: {
@@ -81,79 +105,79 @@ const PanelenTimeline = () => {
       {/* Main Content */}
       <main className="container mx-auto px-6 py-8 space-y-8">
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Totaal Geplande Orders</CardTitle>
+              <CardTitle className="text-sm font-medium">Totaal Orders</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{cumulativeData.length > 0 ? cumulativeData[cumulativeData.length - 1].cumulative : 0}</div>
+              <div className="text-2xl font-bold">{totalOrders}</div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Aantal Leverdagen</CardTitle>
+              <CardTitle className="text-sm font-medium">Totaal Weken</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{timelineData.length}</div>
+              <div className="text-2xl font-bold">{weeklyData.length}</div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Gem. Orders per Dag</CardTitle>
+              <CardTitle className="text-sm font-medium">Weken met Orders</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{weeksWithOrders}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Gem. Orders per Week</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {timelineData.length > 0
-                  ? (cumulativeData[cumulativeData.length - 1].cumulative / timelineData.length).toFixed(1)
+                {weeklyData.length > 0
+                  ? (totalOrders / weeklyData.length).toFixed(1)
                   : 0}
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Timeline Chart */}
+        {/* Weekly Timeline Chart */}
         <Card>
           <CardHeader>
-            <CardTitle>Orders Tijdlijn</CardTitle>
-            <CardDescription>Aantal orders per leveringsdatum</CardDescription>
+            <CardTitle>Orders per Week</CardTitle>
+            <CardDescription>Aantal orders per week (inclusief lege weken)</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer config={chartConfig} className="h-[400px]">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={timelineData} margin={{ left: 0, right: 20, top: 10, bottom: 10 }}>
-                  <defs>
-                    <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
+                <BarChart data={weeklyData} margin={{ left: 0, right: 20, top: 10, bottom: 10 }}>
                   <XAxis 
-                    dataKey="displayDate" 
+                    dataKey="displayWeek" 
                     tick={{ fontSize: 10 }} 
-                    interval="preserveStartEnd"
+                    interval={0}
                     angle={-45}
                     textAnchor="end"
                     height={60}
                   />
-                  <YAxis />
+                  <YAxis allowDecimals={false} />
                   <ChartTooltip 
                     content={<ChartTooltipContent />}
                     labelFormatter={(_, payload) => {
                       if (payload && payload[0]) {
-                        return payload[0].payload.fullDate;
+                        return payload[0].payload.fullWeek;
                       }
                       return "";
                     }}
                   />
-                  <Area
-                    type="monotone"
+                  <Bar
                     dataKey="orders"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth={2}
-                    fill="url(#colorOrders)"
+                    fill="hsl(var(--primary))"
+                    radius={[4, 4, 0, 0]}
                   />
-                </AreaChart>
+                </BarChart>
               </ResponsiveContainer>
             </ChartContainer>
           </CardContent>
@@ -170,9 +194,9 @@ const PanelenTimeline = () => {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={cumulativeData} margin={{ left: 0, right: 20, top: 10, bottom: 10 }}>
                   <XAxis 
-                    dataKey="displayDate" 
+                    dataKey="displayWeek" 
                     tick={{ fontSize: 10 }} 
-                    interval="preserveStartEnd"
+                    interval={0}
                     angle={-45}
                     textAnchor="end"
                     height={60}
@@ -182,7 +206,7 @@ const PanelenTimeline = () => {
                     content={<ChartTooltipContent />}
                     labelFormatter={(_, payload) => {
                       if (payload && payload[0]) {
-                        return payload[0].payload.fullDate;
+                        return payload[0].payload.fullWeek;
                       }
                       return "";
                     }}
