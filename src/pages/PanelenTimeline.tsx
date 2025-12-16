@@ -64,19 +64,23 @@ const PanelenTimeline = () => {
     setIsLoading(true);
     try {
       let data: Order[];
+      let jsonData: any;
       
       if (selectedFile) {
         // Load from selected local file
         const text = await selectedFile.text();
-        data = JSON.parse(text);
+        jsonData = JSON.parse(text);
       } else if (settings.ordersFilePath) {
         // Load from URL path
         const response = await fetch(settings.ordersFilePath);
         if (!response.ok) throw new Error("Bestand niet gevonden");
-        data = await response.json();
+        jsonData = await response.json();
       } else {
         throw new Error("Geen bestand geconfigureerd");
       }
+      
+      // Handle both formats: {Orders: [...]} or direct array [...]
+      data = Array.isArray(jsonData) ? jsonData : (jsonData.Orders || jsonData.orders || []);
       
       setOrders(data);
       toast({ title: "Data vernieuwd", description: `${data.length} orders geladen` });
