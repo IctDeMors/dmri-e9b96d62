@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Settings, RefreshCw } from "lucide-react";
+import { ArrowLeft, Settings, RefreshCw, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -28,10 +28,14 @@ const SETTINGS_KEY = "panelen-timeline-settings";
 
 interface TimelineSettings {
   ordersFilePath: string;
+  useLocalFile: boolean;
+  localFileName: string;
 }
 
 const getDefaultSettings = (): TimelineSettings => ({
   ordersFilePath: "/orders.json",
+  useLocalFile: false,
+  localFileName: "",
 });
 
 const PanelenTimeline = () => {
@@ -40,6 +44,8 @@ const PanelenTimeline = () => {
   const [orders, setOrders] = useState<Order[]>(ordersData);
   const [isLoading, setIsLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load settings from localStorage
   useEffect(() => {
@@ -53,19 +59,31 @@ const PanelenTimeline = () => {
     }
   }, []);
 
-  // Load orders from configured path
+  // Load orders from configured path or local file
   const loadOrders = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(settings.ordersFilePath);
-      if (!response.ok) throw new Error("Bestand niet gevonden");
-      const data = await response.json();
+      let data: Order[];
+      
+      if (selectedFile) {
+        // Load from selected local file
+        const text = await selectedFile.text();
+        data = JSON.parse(text);
+      } else if (settings.ordersFilePath) {
+        // Load from URL path
+        const response = await fetch(settings.ordersFilePath);
+        if (!response.ok) throw new Error("Bestand niet gevonden");
+        data = await response.json();
+      } else {
+        throw new Error("Geen bestand geconfigureerd");
+      }
+      
       setOrders(data);
       toast({ title: "Data vernieuwd", description: `${data.length} orders geladen` });
     } catch (error) {
       toast({ 
         title: "Fout bij laden", 
-        description: "Kon het bestand niet laden. Controleer het pad.", 
+        description: "Kon het bestand niet laden.", 
         variant: "destructive" 
       });
       setOrders(ordersData); // Fallback to static data
@@ -74,16 +92,40 @@ const PanelenTimeline = () => {
     }
   };
 
-  // Load on settings change
+  // Load on settings change or file selection
   useEffect(() => {
-    if (settings.ordersFilePath) {
+    if (selectedFile || settings.ordersFilePath) {
       loadOrders();
     }
-  }, [settings.ordersFilePath]);
+  }, [settings.ordersFilePath, selectedFile]);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      setSettings(prev => ({
+        ...prev,
+        useLocalFile: true,
+        localFileName: file.name,
+      }));
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+        ...settings,
+        useLocalFile: true,
+        localFileName: file.name,
+      }));
+      setDialogOpen(false);
+      toast({ title: "Bestand geselecteerd", description: file.name });
+    }
+  };
 
   const handleSaveSettings = () => {
-    const newSettings: TimelineSettings = { ordersFilePath: tempFilePath };
+    const newSettings: TimelineSettings = { 
+      ordersFilePath: tempFilePath,
+      useLocalFile: false,
+      localFileName: "",
+    };
     setSettings(newSettings);
+    setSelectedFile(null);
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(newSettings));
     setDialogOpen(false);
     toast({ title: "Instellingen opgeslagen" });
@@ -194,12 +236,54 @@ const PanelenTimeline = () => {
                   <DialogHeader>
                     <DialogTitle>Tijdlijn Instellingen</DialogTitle>
                     <DialogDescription>
-                      Configureer het pad naar het orders.json bestand
+                      Selecteer een lokaal bestand of configureer een URL
                     </DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-4 py-4">
+                  <div className="space-y-6 py-4">
+                    {/* Local file picker */}
                     <div className="space-y-2">
-                      <Label htmlFor="ordersFilePath">Orders bestandspad</Label>
+                      <Label>Lokaal bestand selecteren</Label>
+                      <div className="flex gap-2">
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept=".json"
+                          onChange={handleFileSelect}
+                          className="hidden"
+                        />
+                        <Button 
+                          variant="outline" 
+                          onClick={() => fileInputRef.current?.click()}
+                          className="flex-1"
+                        >
+                          <FolderOpen className="w-4 h-4 mr-2" />
+                          Bestand kiezen...
+                        </Button>
+                      </div>
+                      {selectedFile && (
+                        <p className="text-sm text-primary font-medium">
+                          ✓ Geselecteerd: {selectedFile.name}
+                        </p>
+                      )}
+                      {!selectedFile && settings.localFileName && (
+                        <p className="text-sm text-muted-foreground">
+                          Laatst gebruikt: {settings.localFileName} (selecteer opnieuw om te verversen)
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-background px-2 text-muted-foreground">of</span>
+                      </div>
+                    </div>
+
+                    {/* URL path */}
+                    <div className="space-y-2">
+                      <Label htmlFor="ordersFilePath">URL / API pad</Label>
                       <Input
                         id="ordersFilePath"
                         value={tempFilePath}
@@ -209,10 +293,10 @@ const PanelenTimeline = () => {
                       <p className="text-sm text-muted-foreground">
                         Bijvoorbeeld: /orders.json of http://localhost:3001/api/orders
                       </p>
+                      <Button onClick={handleSaveSettings} className="w-full">
+                        URL opslaan
+                      </Button>
                     </div>
-                    <Button onClick={handleSaveSettings} className="w-full">
-                      Opslaan
-                    </Button>
                   </div>
                 </DialogContent>
               </Dialog>
