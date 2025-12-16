@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { FolderOpen, Plus, ArrowLeft } from "lucide-react";
+import { FolderOpen, Plus, ArrowLeft, Bath } from "lucide-react";
 
 const menuItems = [
   {
@@ -9,6 +9,13 @@ const menuItems = [
     description: "Bekijk en beheer je projecten",
     icon: FolderOpen,
     path: "/mycuby/projecten",
+  },
+  {
+    id: "modellen",
+    name: "Alle Modellen",
+    description: "Overzicht van alle badkamer modellen",
+    icon: Bath,
+    path: "/mycuby/modellen",
   },
   {
     id: "nieuw",
