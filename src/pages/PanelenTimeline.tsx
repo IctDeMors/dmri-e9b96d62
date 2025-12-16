@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, BarChart, Bar } from "recharts";
 import { ordersData, Order } from "@/data/orders";
-import { startOfWeek, endOfWeek, addWeeks, format, parseISO, getISOWeek, getYear } from "date-fns";
+import { startOfWeek, endOfWeek, addWeeks, format, parseISO, parse, isValid, getISOWeek, getYear } from "date-fns";
 import { nl } from "date-fns/locale";
 import { toast } from "@/hooks/use-toast";
 
@@ -59,11 +59,40 @@ const PanelenTimeline = () => {
     }
   }, []);
 
+  const normalizeOrdersJson = (jsonData: any): Order[] => {
+    if (Array.isArray(jsonData)) return jsonData;
+
+    if (jsonData && typeof jsonData === "object") {
+      const candidate = jsonData.Orders ?? jsonData.orders;
+      if (Array.isArray(candidate)) return candidate;
+    }
+
+    throw new Error("Onbekend bestandsformaat (verwacht een array of { Orders: [...] })");
+  };
+
+  const parseDeliveryDate = (value?: string): Date | null => {
+    if (!value) return null;
+
+    const trimmed = String(value).trim();
+    const datePart = trimmed.includes("T")
+      ? trimmed.split("T")[0]
+      : trimmed.split(" ")[0];
+
+    const iso = /^\d{4}-\d{2}-\d{2}$/;
+    const dmy = /^\d{2}-\d{2}-\d{4}$/;
+
+    let parsedDate: Date;
+    if (iso.test(datePart)) parsedDate = parseISO(datePart);
+    else if (dmy.test(datePart)) parsedDate = parse(datePart, "dd-MM-yyyy", new Date());
+    else parsedDate = parseISO(trimmed);
+
+    return isValid(parsedDate) ? parsedDate : null;
+  };
+
   // Load orders from configured path or local file
   const loadOrders = async () => {
     setIsLoading(true);
     try {
-      let data: Order[];
       let jsonData: any;
       
       if (selectedFile) {
@@ -79,16 +108,27 @@ const PanelenTimeline = () => {
         throw new Error("Geen bestand geconfigureerd");
       }
       
-      // Handle both formats: {Orders: [...]} or direct array [...]
-      data = Array.isArray(jsonData) ? jsonData : (jsonData.Orders || jsonData.orders || []);
-      
-      setOrders(data);
-      toast({ title: "Data vernieuwd", description: `${data.length} orders geladen` });
+      const normalized = normalizeOrdersJson(jsonData);
+      if (normalized.length === 0) {
+        throw new Error("Geen orders gevonden in het bestand");
+      }
+
+      const hasValidDeliveryDate = normalized.some((o) => !!parseDeliveryDate(o.DELIVERYDATE));
+      if (!hasValidDeliveryDate) {
+        toast({
+          title: "Let op",
+          description: "Geen geldige DELIVERYDATE gevonden; tijdlijn kan leeg zijn.",
+        });
+      }
+
+      setOrders(normalized);
+      toast({ title: "Data vernieuwd", description: `${normalized.length} orders geladen` });
     } catch (error) {
-      toast({ 
-        title: "Fout bij laden", 
-        description: "Kon het bestand niet laden.", 
-        variant: "destructive" 
+      const message = error instanceof Error ? error.message : "Kon het bestand niet laden.";
+      toast({
+        title: "Fout bij laden",
+        description: message,
+        variant: "destructive",
       });
       setOrders(ordersData); // Fallback to static data
     } finally {
@@ -105,21 +145,21 @@ const PanelenTimeline = () => {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-      setSettings(prev => ({
+    if (!file) return;
+
+    setSelectedFile(file);
+    setSettings((prev) => {
+      const next = {
         ...prev,
         useLocalFile: true,
         localFileName: file.name,
-      }));
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify({
-        ...settings,
-        useLocalFile: true,
-        localFileName: file.name,
-      }));
-      setDialogOpen(false);
-      toast({ title: "Bestand geselecteerd", description: file.name });
-    }
+      };
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+      return next;
+    });
+
+    setDialogOpen(false);
+    toast({ title: "Bestand geselecteerd", description: file.name });
   };
 
   const handleSaveSettings = () => {
@@ -135,10 +175,10 @@ const PanelenTimeline = () => {
     toast({ title: "Instellingen opgeslagen" });
   };
 
-  // Get all delivery dates
+  // Get all delivery dates (robust parsing)
   const deliveryDates = orders
-    .filter(order => order.DELIVERYDATE)
-    .map(order => parseISO(order.DELIVERYDATE!.split("T")[0]));
+    .map((order) => parseDeliveryDate(order.DELIVERYDATE))
+    .filter((d): d is Date => Boolean(d));
 
   // Find min and max dates
   const minDate = deliveryDates.length > 0 ? new Date(Math.min(...deliveryDates.map(d => d.getTime()))) : new Date();
@@ -150,13 +190,13 @@ const PanelenTimeline = () => {
 
   // Group orders by week
   const weekCounts: Record<string, number> = {};
-  orders.forEach(order => {
-    if (order.DELIVERYDATE) {
-      const date = parseISO(order.DELIVERYDATE.split("T")[0]);
-      const weekStart = startOfWeek(date, { weekStartsOn: 1 });
-      const weekKey = format(weekStart, "yyyy-MM-dd");
-      weekCounts[weekKey] = (weekCounts[weekKey] || 0) + 1;
-    }
+  orders.forEach((order) => {
+    const date = parseDeliveryDate(order.DELIVERYDATE);
+    if (!date) return;
+
+    const weekStart = startOfWeek(date, { weekStartsOn: 1 });
+    const weekKey = format(weekStart, "yyyy-MM-dd");
+    weekCounts[weekKey] = (weekCounts[weekKey] || 0) + 1;
   });
 
   // Generate all weeks including empty ones
