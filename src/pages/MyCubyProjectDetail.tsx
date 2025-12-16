@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Plus, Trash2, Edit, Bath, Copy } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit, Bath, Copy, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import type { Project, BathroomModel } from "./MyCubyProjecten";
@@ -175,6 +175,38 @@ const MyCubyProjectDetail = () => {
     const updatedModels = [...project.bathroomModels, duplicatedModel];
     saveProject({ ...project, bathroomModels: updatedModels, updatedAt: new Date().toISOString() });
     toast({ title: "Gekopieerd", description: "Badkamer model gedupliceerd" });
+  };
+
+  const handleExport = (model: BathroomModel) => {
+    const exportData = {
+      modelNaam: model.name,
+      type: model.type || null,
+      afmetingen: {
+        breedte: model.breedte || null,
+        diepte: model.diepte || null,
+        hoogte: model.hoogte || null,
+      },
+      kleurlijn: model.kleurlijn ? kleurlijnLabels[model.kleurlijn] : null,
+      onderdelen: {
+        douche: model.heeftDouche || false,
+        toilet: model.heeftToilet || false,
+        badmeubel: model.heeftBadmeubel || false,
+      },
+      notities: model.notes || null,
+      projectNaam: project?.name || null,
+      projectKlant: project?.klant || null,
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `badkamer-${model.name.toLowerCase().replace(/\s+/g, "-")}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast({ title: "Geëxporteerd", description: "Badkamer model geëxporteerd als JSON" });
   };
 
   const handleDialogClose = (open: boolean) => {
@@ -381,6 +413,9 @@ const MyCubyProjectDetail = () => {
                         <div className="flex items-start justify-between">
                           <CardTitle className="text-base">{model.name}</CardTitle>
                           <div className="flex gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleExport(model)} title="Exporteren">
+                              <Download className="h-3 w-3" />
+                            </Button>
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDuplicate(model)} title="Dupliceren">
                               <Copy className="h-3 w-3" />
                             </Button>
