@@ -1,5 +1,6 @@
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Settings, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -7,13 +8,86 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from "recharts";
-import { ordersData } from "@/data/orders";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, BarChart, Bar } from "recharts";
+import { ordersData, Order } from "@/data/orders";
 import { startOfWeek, endOfWeek, addWeeks, format, parseISO, getISOWeek, getYear } from "date-fns";
 import { nl } from "date-fns/locale";
+import { toast } from "@/hooks/use-toast";
+
+const SETTINGS_KEY = "panelen-timeline-settings";
+
+interface TimelineSettings {
+  ordersFilePath: string;
+}
+
+const getDefaultSettings = (): TimelineSettings => ({
+  ordersFilePath: "/orders.json",
+});
 
 const PanelenTimeline = () => {
-  const orders = ordersData;
+  const [settings, setSettings] = useState<TimelineSettings>(getDefaultSettings);
+  const [tempFilePath, setTempFilePath] = useState("");
+  const [orders, setOrders] = useState<Order[]>(ordersData);
+  const [isLoading, setIsLoading] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  // Load settings from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem(SETTINGS_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved) as TimelineSettings;
+      setSettings(parsed);
+      setTempFilePath(parsed.ordersFilePath);
+    } else {
+      setTempFilePath(getDefaultSettings().ordersFilePath);
+    }
+  }, []);
+
+  // Load orders from configured path
+  const loadOrders = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(settings.ordersFilePath);
+      if (!response.ok) throw new Error("Bestand niet gevonden");
+      const data = await response.json();
+      setOrders(data);
+      toast({ title: "Data vernieuwd", description: `${data.length} orders geladen` });
+    } catch (error) {
+      toast({ 
+        title: "Fout bij laden", 
+        description: "Kon het bestand niet laden. Controleer het pad.", 
+        variant: "destructive" 
+      });
+      setOrders(ordersData); // Fallback to static data
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Load on settings change
+  useEffect(() => {
+    if (settings.ordersFilePath) {
+      loadOrders();
+    }
+  }, [settings.ordersFilePath]);
+
+  const handleSaveSettings = () => {
+    const newSettings: TimelineSettings = { ordersFilePath: tempFilePath };
+    setSettings(newSettings);
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(newSettings));
+    setDialogOpen(false);
+    toast({ title: "Instellingen opgeslagen" });
+  };
 
   // Get all delivery dates
   const deliveryDates = orders
@@ -88,15 +162,60 @@ const PanelenTimeline = () => {
       {/* Header */}
       <header className="border-b border-border bg-[#0c3a83]">
         <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center gap-3">
-            <Link to="/panelen">
-              <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 -ml-2">
-                <ArrowLeft className="w-5 h-5" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Link to="/panelen">
+                <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 -ml-2">
+                  <ArrowLeft className="w-5 h-5" />
+                </Button>
+              </Link>
+              <div>
+                <h1 className="text-xl font-bold text-white">Panelen Tijdlijn</h1>
+                <p className="text-white/70 text-sm">Orders per leveringsdatum</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="text-white hover:bg-white/10"
+                onClick={loadOrders}
+                disabled={isLoading}
+              >
+                <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
               </Button>
-            </Link>
-            <div>
-              <h1 className="text-xl font-bold text-white">Panelen Tijdlijn</h1>
-              <p className="text-white/70 text-sm">Orders per leveringsdatum</p>
+              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+                    <Settings className="w-5 h-5" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Tijdlijn Instellingen</DialogTitle>
+                    <DialogDescription>
+                      Configureer het pad naar het orders.json bestand
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="ordersFilePath">Orders bestandspad</Label>
+                      <Input
+                        id="ordersFilePath"
+                        value={tempFilePath}
+                        onChange={(e) => setTempFilePath(e.target.value)}
+                        placeholder="/orders.json"
+                      />
+                      <p className="text-sm text-muted-foreground">
+                        Bijvoorbeeld: /orders.json of http://localhost:3001/api/orders
+                      </p>
+                    </div>
+                    <Button onClick={handleSaveSettings} className="w-full">
+                      Opslaan
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
         </div>
