@@ -9,6 +9,7 @@ import DepartmentPage from "./pages/DepartmentPage";
 import PanelenIndex from "./pages/PanelenIndex";
 import PanelenDashboard from "./pages/PanelenDashboard";
 import PanelenTimeline from "./pages/PanelenTimeline";
+import PanelenOrders from "./pages/PanelenOrders";
 import MyCubyIndex from "./pages/MyCubyIndex";
 import MyCubyProjecten from "./pages/MyCubyProjecten";
 import MyCubyProjectDetail from "./pages/MyCubyProjectDetail";
@@ -30,6 +31,7 @@ const App = () => (
           <Route path="/panelen" element={<PanelenIndex />} />
           <Route path="/panelen/dashboard" element={<PanelenDashboard />} />
           <Route path="/panelen/tijdlijn" element={<PanelenTimeline />} />
+          <Route path="/panelen/orders" element={<PanelenOrders />} />
           <Route path="/units" element={<DepartmentPage />} />
           <Route path="/mycuby" element={<MyCubyIndex />} />
           <Route path="/mycuby/projecten" element={<MyCubyProjecten />} />
