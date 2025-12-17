@@ -33,6 +33,7 @@ interface Order {
 }
 
 const STORAGE_KEY = "panelen_custom_orders";
+const COUNTER_KEY = "panelen_order_counter";
 
 const PanelenOrders = () => {
   const { toast } = useToast();
@@ -40,14 +41,20 @@ const PanelenOrders = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [formData, setFormData] = useState<Partial<Order>>({
-    ORDERNO: 0,
-    OFFERNO: 0,
     ALIAS: "",
     NAME: "",
     CUSTOMERREFERENCE1: "",
     CUSTOMERREFERENCE2: "",
     DELIVERYDATE: "",
   });
+
+  const getNextOrderNumber = (): number => {
+    const saved = localStorage.getItem(COUNTER_KEY);
+    const current = saved ? parseInt(saved, 10) : 1000000;
+    const next = current + 1;
+    localStorage.setItem(COUNTER_KEY, String(next));
+    return next;
+  };
 
   // Load orders from localStorage
   useEffect(() => {
@@ -69,8 +76,6 @@ const PanelenOrders = () => {
 
   const resetForm = () => {
     setFormData({
-      ORDERNO: 0,
-      OFFERNO: 0,
       ALIAS: "",
       NAME: "",
       CUSTOMERREFERENCE1: "",
@@ -101,47 +106,47 @@ const PanelenOrders = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.ORDERNO || !formData.NAME) {
+    if (!formData.NAME) {
       toast({
         title: "Fout",
-        description: "Ordernummer en naam zijn verplicht",
+        description: "Naam is verplicht",
         variant: "destructive",
       });
       return;
     }
 
-    const orderData: Order = {
-      ORDERNO: Number(formData.ORDERNO),
-      OFFERNO: Number(formData.OFFERNO) || 0,
-      ALIAS: formData.ALIAS || "",
-      NAME: formData.NAME || "",
-      CUSTOMERREFERENCE1: formData.CUSTOMERREFERENCE1 || "",
-      CUSTOMERREFERENCE2: formData.CUSTOMERREFERENCE2 || "",
-      DELIVERYDATE: formData.DELIVERYDATE
-        ? `${formData.DELIVERYDATE}T00:00:00`
-        : undefined,
-    };
-
     let newOrders: Order[];
     if (editingOrder) {
+      const orderData: Order = {
+        ...editingOrder,
+        ALIAS: formData.ALIAS || "",
+        NAME: formData.NAME || "",
+        CUSTOMERREFERENCE1: formData.CUSTOMERREFERENCE1 || "",
+        CUSTOMERREFERENCE2: formData.CUSTOMERREFERENCE2 || "",
+        DELIVERYDATE: formData.DELIVERYDATE
+          ? `${formData.DELIVERYDATE}T00:00:00`
+          : undefined,
+      };
       newOrders = orders.map((o) =>
         o.ORDERNO === editingOrder.ORDERNO ? orderData : o
       );
       toast({ title: "Succes", description: "Order bijgewerkt" });
     } else {
-      // Check if order number already exists
-      if (orders.some((o) => o.ORDERNO === orderData.ORDERNO)) {
-        toast({
-          title: "Fout",
-          description: "Ordernummer bestaat al",
-          variant: "destructive",
-        });
-        return;
-      }
+      const newOrderNo = getNextOrderNumber();
+      const orderData: Order = {
+        ORDERNO: newOrderNo,
+        OFFERNO: newOrderNo,
+        ALIAS: formData.ALIAS || "",
+        NAME: formData.NAME || "",
+        CUSTOMERREFERENCE1: formData.CUSTOMERREFERENCE1 || "",
+        CUSTOMERREFERENCE2: formData.CUSTOMERREFERENCE2 || "",
+        DELIVERYDATE: formData.DELIVERYDATE
+          ? `${formData.DELIVERYDATE}T00:00:00`
+          : undefined,
+      };
       newOrders = [...orders, orderData];
       toast({ title: "Succes", description: "Order aangemaakt" });
     }
-
     saveOrders(newOrders);
     handleCloseDialog();
   };
@@ -201,32 +206,6 @@ const PanelenOrders = () => {
                   </DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="ORDERNO">Ordernummer *</Label>
-                      <Input
-                        id="ORDERNO"
-                        type="number"
-                        value={formData.ORDERNO || ""}
-                        onChange={(e) =>
-                          setFormData({ ...formData, ORDERNO: Number(e.target.value) })
-                        }
-                        disabled={!!editingOrder}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="OFFERNO">Offertenummer</Label>
-                      <Input
-                        id="OFFERNO"
-                        type="number"
-                        value={formData.OFFERNO || ""}
-                        onChange={(e) =>
-                          setFormData({ ...formData, OFFERNO: Number(e.target.value) })
-                        }
-                      />
-                    </div>
-                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="NAME">Naam *</Label>
                     <Input
