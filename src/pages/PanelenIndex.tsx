@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowLeft, LayoutDashboard, Calendar } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, Calendar, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -19,6 +19,14 @@ const pages = [
     icon: Calendar,
     path: "/panelen/tijdlijn",
     color: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+  },
+  {
+    id: "orders",
+    name: "Orders Beheren",
+    description: "Aanmaken, bewerken en bekijken van orders",
+    icon: ClipboardList,
+    path: "/panelen/orders",
+    color: "bg-green-500/10 text-green-600 dark:text-green-400",
   },
 ];
 
