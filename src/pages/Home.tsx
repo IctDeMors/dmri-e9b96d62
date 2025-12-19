@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
-import { DatabaseIcon, Building2, Layers, Box, Cpu, Home } from "lucide-react";
+import { Building2, Layers, Box, Cpu, Home } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import demorsLogo from "@/assets/demors-logo.png";
 
 const departments = [
   {
@@ -50,11 +51,8 @@ const HomePage = () => {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border bg-[#0c3a83]">
-        <div className="container mx-auto px-6 py-6">
-          <div className="flex items-center gap-3">
-            <DatabaseIcon className="w-8 h-8 text-white" />
-            <h1 className="text-2xl font-bold text-white">DMRI</h1>
-          </div>
+        <div className="container mx-auto px-6 py-4">
+          <img src={demorsLogo} alt="De Mors" className="h-12" />
         </div>
       </header>
 
