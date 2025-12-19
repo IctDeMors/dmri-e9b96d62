@@ -345,37 +345,86 @@ const PanelenOrders = () => {
                           Laag toevoegen
                         </Button>
                       </div>
-                      <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                        {(formData.lagen || []).map((laag, index) => (
-                          <div key={laag.id} className="flex items-center gap-2 p-2 bg-muted/50 rounded-md">
-                            <span className="text-sm font-medium w-8">#{index + 1}</span>
-                            <Select value={laag.type} onValueChange={(v) => updateLaag(laag.id, "type", v)}>
-                              <SelectTrigger className="w-[120px]">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="volkern">Volkern</SelectItem>
-                                <SelectItem value="isolatie">Isolatie</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <Select value={laag.materiaal} onValueChange={(v) => updateLaag(laag.id, "materiaal", v)}>
-                              <SelectTrigger className="w-[140px]">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {laag.type === "isolatie"
-                                  ? ISOLATIE_MATERIALEN.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)
-                                  : VOLKERN_MATERIALEN.map((m) => <SelectItem key={m} value={m}>{m.charAt(0).toUpperCase() + m.slice(1)}</SelectItem>)
-                                }
-                              </SelectContent>
-                            </Select>
-                            <Button type="button" variant="ghost" size="icon" onClick={() => removeLaag(laag.id)} className="text-destructive hover:text-destructive ml-auto">
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                      
+                      <div className="flex gap-4">
+                        {/* Lagen lijst */}
+                        <div className="flex-1 space-y-2 max-h-[200px] overflow-y-auto">
+                          {(formData.lagen || []).map((laag, index) => (
+                            <div key={laag.id} className="flex items-center gap-2 p-2 bg-muted/50 rounded-md">
+                              <span className="text-sm font-medium w-8">#{index + 1}</span>
+                              <Select value={laag.type} onValueChange={(v) => updateLaag(laag.id, "type", v)}>
+                                <SelectTrigger className="w-[120px]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="volkern">Volkern</SelectItem>
+                                  <SelectItem value="isolatie">Isolatie</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Select value={laag.materiaal} onValueChange={(v) => updateLaag(laag.id, "materiaal", v)}>
+                                <SelectTrigger className="w-[140px]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {laag.type === "isolatie"
+                                    ? ISOLATIE_MATERIALEN.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)
+                                    : VOLKERN_MATERIALEN.map((m) => <SelectItem key={m} value={m}>{m.charAt(0).toUpperCase() + m.slice(1)}</SelectItem>)
+                                  }
+                                </SelectContent>
+                              </Select>
+                              <Button type="button" variant="ghost" size="icon" onClick={() => removeLaag(laag.id)} className="text-destructive hover:text-destructive ml-auto">
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ))}
+                          {(formData.lagen || []).length === 0 && (
+                            <p className="text-sm text-muted-foreground text-center py-4">Nog geen lagen toegevoegd</p>
+                          )}
+                        </div>
+
+                        {/* Visuele sandwich weergave */}
+                        {(formData.lagen || []).length > 0 && (
+                          <div className="w-32 flex flex-col items-center">
+                            <span className="text-xs text-muted-foreground mb-2">Preview</span>
+                            <div className="w-24 rounded-lg overflow-hidden shadow-md border border-border">
+                              {(formData.lagen || []).map((laag, index) => {
+                                const getLayerStyle = () => {
+                                  if (laag.type === "isolatie") {
+                                    switch (laag.materiaal) {
+                                      case "Pir": return { backgroundColor: "#FFD700", height: "24px" }; // Geel
+                                      case "Pur": return { backgroundColor: "#FFA500", height: "24px" }; // Oranje
+                                      case "XPS": return { backgroundColor: "#87CEEB", height: "24px" }; // Lichtblauw
+                                      default: return { backgroundColor: "#FFD700", height: "24px" };
+                                    }
+                                  } else {
+                                    switch (laag.materiaal) {
+                                      case "trespa": return { backgroundColor: "#4A4A4A", height: "8px" }; // Donkergrijs
+                                      case "renolit": return { backgroundColor: "#F5F5DC", height: "8px" }; // Beige
+                                      case "glas": return { backgroundColor: "#ADD8E6", height: "8px", opacity: 0.7 }; // Transparant blauw
+                                      case "staal": return { backgroundColor: "#C0C0C0", height: "8px" }; // Zilver
+                                      case "aluminium": return { backgroundColor: "#A9A9A9", height: "8px" }; // Aluminium grijs
+                                      default: return { backgroundColor: "#4A4A4A", height: "8px" };
+                                    }
+                                  }
+                                };
+                                const style = getLayerStyle();
+                                return (
+                                  <div
+                                    key={laag.id}
+                                    className="w-full flex items-center justify-center text-[8px] font-medium"
+                                    style={{
+                                      ...style,
+                                      color: laag.type === "volkern" && laag.materiaal !== "renolit" ? "#fff" : "#333",
+                                      borderBottom: index < (formData.lagen || []).length - 1 ? "1px solid rgba(0,0,0,0.1)" : "none"
+                                    }}
+                                  >
+                                    {laag.materiaal}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            <span className="text-[10px] text-muted-foreground mt-2 text-center">Sandwich paneel</span>
                           </div>
-                        ))}
-                        {(formData.lagen || []).length === 0 && (
-                          <p className="text-sm text-muted-foreground text-center py-4">Nog geen lagen toegevoegd</p>
                         )}
                       </div>
                     </div>
