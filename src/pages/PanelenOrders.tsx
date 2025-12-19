@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, Edit2, Save, X, Layers, ChevronRight, ChevronLeft, Package } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit2, Save, X, Layers, ChevronRight, ChevronLeft, Package, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -195,6 +195,27 @@ const PanelenOrders = () => {
     if (activeSamenstellingId === String(id) && newSamenstellingen.length > 0) {
       setActiveSamenstellingId(String(newSamenstellingen[0].id));
     }
+  };
+
+  const copySamenstelling = (id: number) => {
+    const samenstellingen = formData.samenstellingen || [];
+    if (samenstellingen.length >= 10) {
+      toast({ title: "Maximum bereikt", description: "Maximaal 10 samenstellingen toegestaan", variant: "destructive" });
+      return;
+    }
+    const original = samenstellingen.find((s) => s.id === id);
+    if (!original) return;
+    
+    const newSamenstelling: Samenstelling = {
+      id: Date.now(),
+      naam: `${original.naam} (kopie)`,
+      lagen: original.lagen.map((l) => ({ ...l, id: Date.now() + Math.random() * 1000 })),
+      stuklijst: original.stuklijst.map((s) => ({ ...s, id: Date.now() + Math.random() * 1000 })),
+    };
+    const newSamenstellingen = [...samenstellingen, newSamenstelling];
+    setFormData({ ...formData, samenstellingen: newSamenstellingen });
+    setActiveSamenstellingId(String(newSamenstelling.id));
+    toast({ title: "Gekopieerd", description: `${original.naam} is gekopieerd` });
   };
 
   const updateSamenstellingNaam = (id: number, naam: string) => {
@@ -480,7 +501,7 @@ const PanelenOrders = () => {
 
                           {(formData.samenstellingen || []).map((samenstelling) => (
                             <TabsContent key={samenstelling.id} value={String(samenstelling.id)} className="space-y-4 mt-4">
-                              {/* Samenstelling naam en verwijderen */}
+                              {/* Samenstelling naam en acties */}
                               <div className="flex items-center gap-2">
                                 <Input
                                   value={samenstelling.naam}
@@ -492,8 +513,18 @@ const PanelenOrders = () => {
                                   type="button"
                                   variant="ghost"
                                   size="icon"
+                                  onClick={() => copySamenstelling(samenstelling.id)}
+                                  title="Kopieer samenstelling"
+                                >
+                                  <Copy className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
                                   onClick={() => removeSamenstelling(samenstelling.id)}
                                   className="text-destructive hover:text-destructive"
+                                  title="Verwijder samenstelling"
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </Button>
