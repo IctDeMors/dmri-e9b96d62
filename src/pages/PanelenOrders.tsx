@@ -397,79 +397,75 @@ const PanelenOrders = () => {
     return (order.samenstellingen || []).reduce((acc, s) => acc + s.stuklijst.length, 0);
   };
 
-  const exportToPDF = () => {
+  const exportOrderToPDF = (order: Order) => {
     const doc = new jsPDF();
     doc.setFontSize(18);
-    doc.text("Panelen Orders", 14, 20);
+    doc.text(`Order: ${order.ORDERNO}`, 14, 20);
     doc.setFontSize(10);
-    doc.text(`Geëxporteerd op: ${new Date().toLocaleDateString("nl-NL")}`, 14, 28);
+    doc.text(`Naam: ${order.NAME}`, 14, 28);
+    doc.text(`Alias: ${order.ALIAS || "-"}`, 14, 34);
+    doc.text(`Klantreferentie: ${order.CUSTOMERREFERENCE1 || "-"}`, 14, 40);
+    doc.text(`Leverdatum: ${formatDate(order.DELIVERYDATE)}`, 14, 46);
+    doc.text(`Geëxporteerd op: ${new Date().toLocaleDateString("nl-NL")}`, 14, 52);
 
-    const tableData = orders.map((order) => [
-      order.ORDERNO,
-      order.NAME,
-      order.ALIAS || "-",
-      order.CUSTOMERREFERENCE1 || "-",
-      formatDate(order.DELIVERYDATE),
-      (order.samenstellingen || []).length,
-      getTotalLagen(order),
-      getTotalStuklijst(order),
-    ]);
+    let yPos = 65;
 
-    autoTable(doc, {
-      head: [["Order Nr", "Naam", "Alias", "Klantreferentie", "Leverdatum", "Samenstellingen", "Lagen", "Stuklijst"]],
-      body: tableData,
-      startY: 35,
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [12, 58, 131] },
-    });
-
-    // Detail per order
-    let yPos = (doc as any).lastAutoTable.finalY + 15;
-    
-    orders.forEach((order) => {
+    (order.samenstellingen || []).forEach((sam) => {
       if (yPos > 250) {
         doc.addPage();
         yPos = 20;
       }
 
       doc.setFontSize(12);
-      doc.text(`Order: ${order.ORDERNO} - ${order.NAME}`, 14, yPos);
-      yPos += 8;
+      doc.text(sam.naam, 14, yPos);
+      yPos += 6;
 
-      (order.samenstellingen || []).forEach((sam) => {
-        if (yPos > 250) {
+      // Lagen tabel
+      if (sam.lagen.length > 0) {
+        doc.setFontSize(10);
+        doc.text("Lagen:", 14, yPos);
+        yPos += 4;
+        autoTable(doc, {
+          head: [["#", "Type", "Materiaal"]],
+          body: sam.lagen.map((laag, idx) => [idx + 1, laag.type, laag.materiaal]),
+          startY: yPos,
+          styles: { fontSize: 8 },
+          headStyles: { fillColor: [12, 58, 131] },
+          margin: { left: 14 },
+        });
+        yPos = (doc as any).lastAutoTable.finalY + 8;
+      }
+
+      // Stuklijst tabel
+      if (sam.stuklijst.length > 0) {
+        if (yPos > 230) {
           doc.addPage();
           yPos = 20;
         }
-
         doc.setFontSize(10);
-        doc.text(`  ${sam.naam}`, 14, yPos);
-        yPos += 5;
-
-        if (sam.stuklijst.length > 0) {
-          autoTable(doc, {
-            head: [["Aantal", "Lengte (mm)", "Breedte (mm)", "Merk"]],
-            body: sam.stuklijst.map((item) => [item.aantal, item.lengte, item.breedte, item.merk || "-"]),
-            startY: yPos,
-            styles: { fontSize: 7 },
-            headStyles: { fillColor: [100, 100, 100] },
-            margin: { left: 20 },
-          });
-          yPos = (doc as any).lastAutoTable.finalY + 8;
-        }
-      });
-      yPos += 5;
+        doc.text("Stuklijst:", 14, yPos);
+        yPos += 4;
+        autoTable(doc, {
+          head: [["#", "Aantal", "Lengte (mm)", "Breedte (mm)", "Merk"]],
+          body: sam.stuklijst.map((item, idx) => [idx + 1, item.aantal, item.lengte, item.breedte, item.merk || "-"]),
+          startY: yPos,
+          styles: { fontSize: 8 },
+          headStyles: { fillColor: [100, 100, 100] },
+          margin: { left: 14 },
+        });
+        yPos = (doc as any).lastAutoTable.finalY + 12;
+      }
     });
 
-    doc.save(`panelen-orders-${new Date().toISOString().split("T")[0]}.pdf`);
-    toast({ title: "Geëxporteerd", description: "PDF is gedownload" });
+    doc.save(`order-${order.ORDERNO}.pdf`);
+    toast({ title: "Geëxporteerd", description: `PDF voor order ${order.ORDERNO} is gedownload` });
   };
 
-  const exportToExcel = () => {
+  const exportOrderToExcel = (order: Order) => {
     const wb = XLSX.utils.book_new();
 
-    // Orders overzicht sheet
-    const ordersData = orders.map((order) => ({
+    // Order info sheet
+    const orderInfo = [{
       "Order Nr": order.ORDERNO,
       "Naam": order.NAME,
       "Alias": order.ALIAS || "",
@@ -477,26 +473,21 @@ const PanelenOrders = () => {
       "Klantreferentie 2": order.CUSTOMERREFERENCE2 || "",
       "Leverdatum": formatDate(order.DELIVERYDATE),
       "Aantal Samenstellingen": (order.samenstellingen || []).length,
-      "Totaal Lagen": getTotalLagen(order),
-      "Totaal Stuklijst": getTotalStuklijst(order),
-    }));
-    const wsOrders = XLSX.utils.json_to_sheet(ordersData);
-    XLSX.utils.book_append_sheet(wb, wsOrders, "Orders");
+    }];
+    const wsOrder = XLSX.utils.json_to_sheet(orderInfo);
+    XLSX.utils.book_append_sheet(wb, wsOrder, "Order Info");
 
-    // Stuklijst detail sheet
+    // Stuklijst sheet
     const stuklijstData: any[] = [];
-    orders.forEach((order) => {
-      (order.samenstellingen || []).forEach((sam) => {
-        sam.stuklijst.forEach((item) => {
-          stuklijstData.push({
-            "Order Nr": order.ORDERNO,
-            "Order Naam": order.NAME,
-            "Samenstelling": sam.naam,
-            "Aantal": item.aantal,
-            "Lengte (mm)": item.lengte,
-            "Breedte (mm)": item.breedte,
-            "Merk": item.merk || "",
-          });
+    (order.samenstellingen || []).forEach((sam) => {
+      sam.stuklijst.forEach((item, idx) => {
+        stuklijstData.push({
+          "Samenstelling": sam.naam,
+          "#": idx + 1,
+          "Aantal": item.aantal,
+          "Lengte (mm)": item.lengte,
+          "Breedte (mm)": item.breedte,
+          "Merk": item.merk || "",
         });
       });
     });
@@ -505,19 +496,15 @@ const PanelenOrders = () => {
       XLSX.utils.book_append_sheet(wb, wsStuklijst, "Stuklijst");
     }
 
-    // Lagen detail sheet
+    // Lagen sheet
     const lagenData: any[] = [];
-    orders.forEach((order) => {
-      (order.samenstellingen || []).forEach((sam) => {
-        sam.lagen.forEach((laag, idx) => {
-          lagenData.push({
-            "Order Nr": order.ORDERNO,
-            "Order Naam": order.NAME,
-            "Samenstelling": sam.naam,
-            "Laag Nr": idx + 1,
-            "Type": laag.type,
-            "Materiaal": laag.materiaal,
-          });
+    (order.samenstellingen || []).forEach((sam) => {
+      sam.lagen.forEach((laag, idx) => {
+        lagenData.push({
+          "Samenstelling": sam.naam,
+          "#": idx + 1,
+          "Type": laag.type,
+          "Materiaal": laag.materiaal,
         });
       });
     });
@@ -526,8 +513,38 @@ const PanelenOrders = () => {
       XLSX.utils.book_append_sheet(wb, wsLagen, "Lagen");
     }
 
-    XLSX.writeFile(wb, `panelen-orders-${new Date().toISOString().split("T")[0]}.xlsx`);
-    toast({ title: "Geëxporteerd", description: "Excel is gedownload" });
+    XLSX.writeFile(wb, `order-${order.ORDERNO}.xlsx`);
+    toast({ title: "Geëxporteerd", description: `Excel voor order ${order.ORDERNO} is gedownload` });
+  };
+
+  const exportOrderToJSON = (order: Order) => {
+    const exportData = {
+      ordernummer: order.ORDERNO,
+      offernummer: order.OFFERNO,
+      naam: order.NAME,
+      alias: order.ALIAS,
+      klantreferentie1: order.CUSTOMERREFERENCE1,
+      klantreferentie2: order.CUSTOMERREFERENCE2,
+      leverdatum: order.DELIVERYDATE,
+      samenstellingen: (order.samenstellingen || []).map((sam) => ({
+        naam: sam.naam,
+        lagen: sam.lagen.map((l) => ({ type: l.type, materiaal: l.materiaal })),
+        stuklijst: sam.stuklijst.map((s) => ({
+          aantal: s.aantal,
+          lengte: s.lengte,
+          breedte: s.breedte,
+          merk: s.merk,
+        })),
+      })),
+    };
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `order-${order.ORDERNO}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "Geëxporteerd", description: `JSON voor order ${order.ORDERNO} is gedownload` });
   };
 
   const activeSamenstelling = getActiveSamenstelling();
@@ -548,22 +565,13 @@ const PanelenOrders = () => {
                 <p className="text-white/70 text-sm">Aanmaken, bewerken en bekijken van orders</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button onClick={exportToPDF} variant="outline" className="bg-white/10 text-white border-white/30 hover:bg-white/20">
-                <FileText className="w-4 h-4 mr-2" />
-                PDF
-              </Button>
-              <Button onClick={exportToExcel} variant="outline" className="bg-white/10 text-white border-white/30 hover:bg-white/20">
-                <FileSpreadsheet className="w-4 h-4 mr-2" />
-                Excel
-              </Button>
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button onClick={() => handleOpenDialog()} className="bg-white text-[#0c3a83] hover:bg-white/90">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Nieuwe Order
-                  </Button>
-                </DialogTrigger>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={() => handleOpenDialog()} className="bg-white text-[#0c3a83] hover:bg-white/90">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Nieuwe Order
+                </Button>
+              </DialogTrigger>
               <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>
@@ -853,8 +861,7 @@ const PanelenOrders = () => {
                   </div>
                 )}
               </DialogContent>
-              </Dialog>
-            </div>
+            </Dialog>
           </div>
         </div>
       </header>
@@ -897,10 +904,19 @@ const PanelenOrders = () => {
                         <TableCell>{formatDate(order.DELIVERYDATE)}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(order)}>
+                            <Button variant="ghost" size="icon" onClick={() => exportOrderToPDF(order)} title="Export PDF">
+                              <FileText className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => exportOrderToExcel(order)} title="Export Excel">
+                              <FileSpreadsheet className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => exportOrderToJSON(order)} title="Export JSON">
+                              <Download className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(order)} title="Bewerken">
                               <Edit2 className="w-4 h-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleDelete(order.ORDERNO)} className="text-destructive hover:text-destructive">
+                            <Button variant="ghost" size="icon" onClick={() => handleDelete(order.ORDERNO)} className="text-destructive hover:text-destructive" title="Verwijderen">
                               <Trash2 className="w-4 h-4" />
                             </Button>
                           </div>
