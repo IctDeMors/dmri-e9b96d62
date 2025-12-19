@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, Edit2, Save, X, Layers, ChevronRight, ChevronLeft, Package, Copy } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit2, Save, X, Layers, ChevronRight, ChevronLeft, Package, Copy, Download, FileSpreadsheet, FileText } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -394,6 +397,139 @@ const PanelenOrders = () => {
     return (order.samenstellingen || []).reduce((acc, s) => acc + s.stuklijst.length, 0);
   };
 
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text("Panelen Orders", 14, 20);
+    doc.setFontSize(10);
+    doc.text(`Geëxporteerd op: ${new Date().toLocaleDateString("nl-NL")}`, 14, 28);
+
+    const tableData = orders.map((order) => [
+      order.ORDERNO,
+      order.NAME,
+      order.ALIAS || "-",
+      order.CUSTOMERREFERENCE1 || "-",
+      formatDate(order.DELIVERYDATE),
+      (order.samenstellingen || []).length,
+      getTotalLagen(order),
+      getTotalStuklijst(order),
+    ]);
+
+    autoTable(doc, {
+      head: [["Order Nr", "Naam", "Alias", "Klantreferentie", "Leverdatum", "Samenstellingen", "Lagen", "Stuklijst"]],
+      body: tableData,
+      startY: 35,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [12, 58, 131] },
+    });
+
+    // Detail per order
+    let yPos = (doc as any).lastAutoTable.finalY + 15;
+    
+    orders.forEach((order) => {
+      if (yPos > 250) {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      doc.setFontSize(12);
+      doc.text(`Order: ${order.ORDERNO} - ${order.NAME}`, 14, yPos);
+      yPos += 8;
+
+      (order.samenstellingen || []).forEach((sam) => {
+        if (yPos > 250) {
+          doc.addPage();
+          yPos = 20;
+        }
+
+        doc.setFontSize(10);
+        doc.text(`  ${sam.naam}`, 14, yPos);
+        yPos += 5;
+
+        if (sam.stuklijst.length > 0) {
+          autoTable(doc, {
+            head: [["Aantal", "Lengte (mm)", "Breedte (mm)", "Merk"]],
+            body: sam.stuklijst.map((item) => [item.aantal, item.lengte, item.breedte, item.merk || "-"]),
+            startY: yPos,
+            styles: { fontSize: 7 },
+            headStyles: { fillColor: [100, 100, 100] },
+            margin: { left: 20 },
+          });
+          yPos = (doc as any).lastAutoTable.finalY + 8;
+        }
+      });
+      yPos += 5;
+    });
+
+    doc.save(`panelen-orders-${new Date().toISOString().split("T")[0]}.pdf`);
+    toast({ title: "Geëxporteerd", description: "PDF is gedownload" });
+  };
+
+  const exportToExcel = () => {
+    const wb = XLSX.utils.book_new();
+
+    // Orders overzicht sheet
+    const ordersData = orders.map((order) => ({
+      "Order Nr": order.ORDERNO,
+      "Naam": order.NAME,
+      "Alias": order.ALIAS || "",
+      "Klantreferentie 1": order.CUSTOMERREFERENCE1 || "",
+      "Klantreferentie 2": order.CUSTOMERREFERENCE2 || "",
+      "Leverdatum": formatDate(order.DELIVERYDATE),
+      "Aantal Samenstellingen": (order.samenstellingen || []).length,
+      "Totaal Lagen": getTotalLagen(order),
+      "Totaal Stuklijst": getTotalStuklijst(order),
+    }));
+    const wsOrders = XLSX.utils.json_to_sheet(ordersData);
+    XLSX.utils.book_append_sheet(wb, wsOrders, "Orders");
+
+    // Stuklijst detail sheet
+    const stuklijstData: any[] = [];
+    orders.forEach((order) => {
+      (order.samenstellingen || []).forEach((sam) => {
+        sam.stuklijst.forEach((item) => {
+          stuklijstData.push({
+            "Order Nr": order.ORDERNO,
+            "Order Naam": order.NAME,
+            "Samenstelling": sam.naam,
+            "Aantal": item.aantal,
+            "Lengte (mm)": item.lengte,
+            "Breedte (mm)": item.breedte,
+            "Merk": item.merk || "",
+          });
+        });
+      });
+    });
+    if (stuklijstData.length > 0) {
+      const wsStuklijst = XLSX.utils.json_to_sheet(stuklijstData);
+      XLSX.utils.book_append_sheet(wb, wsStuklijst, "Stuklijst");
+    }
+
+    // Lagen detail sheet
+    const lagenData: any[] = [];
+    orders.forEach((order) => {
+      (order.samenstellingen || []).forEach((sam) => {
+        sam.lagen.forEach((laag, idx) => {
+          lagenData.push({
+            "Order Nr": order.ORDERNO,
+            "Order Naam": order.NAME,
+            "Samenstelling": sam.naam,
+            "Laag Nr": idx + 1,
+            "Type": laag.type,
+            "Materiaal": laag.materiaal,
+          });
+        });
+      });
+    });
+    if (lagenData.length > 0) {
+      const wsLagen = XLSX.utils.json_to_sheet(lagenData);
+      XLSX.utils.book_append_sheet(wb, wsLagen, "Lagen");
+    }
+
+    XLSX.writeFile(wb, `panelen-orders-${new Date().toISOString().split("T")[0]}.xlsx`);
+    toast({ title: "Geëxporteerd", description: "Excel is gedownload" });
+  };
+
   const activeSamenstelling = getActiveSamenstelling();
 
   return (
@@ -412,13 +548,22 @@ const PanelenOrders = () => {
                 <p className="text-white/70 text-sm">Aanmaken, bewerken en bekijken van orders</p>
               </div>
             </div>
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={() => handleOpenDialog()} className="bg-white text-[#0c3a83] hover:bg-white/90">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Nieuwe Order
-                </Button>
-              </DialogTrigger>
+            <div className="flex items-center gap-2">
+              <Button onClick={exportToPDF} variant="outline" className="bg-white/10 text-white border-white/30 hover:bg-white/20">
+                <FileText className="w-4 h-4 mr-2" />
+                PDF
+              </Button>
+              <Button onClick={exportToExcel} variant="outline" className="bg-white/10 text-white border-white/30 hover:bg-white/20">
+                <FileSpreadsheet className="w-4 h-4 mr-2" />
+                Excel
+              </Button>
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button onClick={() => handleOpenDialog()} className="bg-white text-[#0c3a83] hover:bg-white/90">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Nieuwe Order
+                  </Button>
+                </DialogTrigger>
               <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>
@@ -708,7 +853,8 @@ const PanelenOrders = () => {
                   </div>
                 )}
               </DialogContent>
-            </Dialog>
+              </Dialog>
+            </div>
           </div>
         </div>
       </header>
