@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import SandwichPanel3D from "@/components/SandwichPanel3D";
 import {
   Table,
   TableBody,
@@ -382,50 +383,13 @@ const PanelenOrders = () => {
                           )}
                         </div>
 
-                        {/* Visuele sandwich weergave */}
-                        {(formData.lagen || []).length > 0 && (
-                          <div className="w-32 flex flex-col items-center">
-                            <span className="text-xs text-muted-foreground mb-2">Preview</span>
-                            <div className="w-24 rounded-lg overflow-hidden shadow-md border border-border">
-                              {(formData.lagen || []).map((laag, index) => {
-                                const getLayerStyle = () => {
-                                  if (laag.type === "isolatie") {
-                                    switch (laag.materiaal) {
-                                      case "Pir": return { backgroundColor: "#FFD700", height: "24px" }; // Geel
-                                      case "Pur": return { backgroundColor: "#FFA500", height: "24px" }; // Oranje
-                                      case "XPS": return { backgroundColor: "#87CEEB", height: "24px" }; // Lichtblauw
-                                      default: return { backgroundColor: "#FFD700", height: "24px" };
-                                    }
-                                  } else {
-                                    switch (laag.materiaal) {
-                                      case "trespa": return { backgroundColor: "#4A4A4A", height: "8px" }; // Donkergrijs
-                                      case "renolit": return { backgroundColor: "#F5F5DC", height: "8px" }; // Beige
-                                      case "glas": return { backgroundColor: "#ADD8E6", height: "8px", opacity: 0.7 }; // Transparant blauw
-                                      case "staal": return { backgroundColor: "#C0C0C0", height: "8px" }; // Zilver
-                                      case "aluminium": return { backgroundColor: "#A9A9A9", height: "8px" }; // Aluminium grijs
-                                      default: return { backgroundColor: "#4A4A4A", height: "8px" };
-                                    }
-                                  }
-                                };
-                                const style = getLayerStyle();
-                                return (
-                                  <div
-                                    key={laag.id}
-                                    className="w-full flex items-center justify-center text-[8px] font-medium"
-                                    style={{
-                                      ...style,
-                                      color: laag.type === "volkern" && laag.materiaal !== "renolit" ? "#fff" : "#333",
-                                      borderBottom: index < (formData.lagen || []).length - 1 ? "1px solid rgba(0,0,0,0.1)" : "none"
-                                    }}
-                                  >
-                                    {laag.materiaal}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                            <span className="text-[10px] text-muted-foreground mt-2 text-center">Sandwich paneel</span>
+                        {/* 3D Sandwich weergave */}
+                        <div className="w-64 flex flex-col">
+                          <span className="text-xs text-muted-foreground mb-2 text-center">3D Preview (sleep om te draaien)</span>
+                          <div className="h-48 rounded-lg overflow-hidden border border-border bg-gradient-to-b from-slate-100 to-slate-200">
+                            <SandwichPanel3D lagen={formData.lagen || []} />
                           </div>
-                        )}
+                        </div>
                       </div>
                     </div>
 
