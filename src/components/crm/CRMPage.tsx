@@ -1,12 +1,13 @@
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, LayoutDashboard, Building2, Users, TrendingUp } from 'lucide-react';
+import { ArrowLeft, LayoutDashboard, Building2, Users, TrendingUp, ClipboardList } from 'lucide-react';
 import { DepartmentType } from '@/hooks/useCRM';
 import { CRMDashboard } from './CRMDashboard';
 import { CompaniesTable } from './CompaniesTable';
 import { ContactsTable } from './ContactsTable';
 import { LeadsTable } from './LeadsTable';
+import { ActivitiesTable } from './ActivitiesTable';
 
 interface CRMPageProps {
   department: DepartmentType;
@@ -53,6 +54,10 @@ export function CRMPage({ department, title, backPath, headerColor = 'bg-[#0c3a8
               <TrendingUp className="w-4 h-4" />
               Leads
             </TabsTrigger>
+            <TabsTrigger value="activities" className="gap-2">
+              <ClipboardList className="w-4 h-4" />
+              Activiteiten
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard">
@@ -69,6 +74,10 @@ export function CRMPage({ department, title, backPath, headerColor = 'bg-[#0c3a8
 
           <TabsContent value="leads">
             <LeadsTable department={department} />
+          </TabsContent>
+
+          <TabsContent value="activities">
+            <ActivitiesTable department={department} />
           </TabsContent>
         </Tabs>
       </main>
