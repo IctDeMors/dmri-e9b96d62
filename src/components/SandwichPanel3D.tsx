@@ -1,6 +1,9 @@
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
+import { RotateCcw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 
 type LaagType = "Volkern" | "Isolatie";
 
@@ -37,7 +40,7 @@ const getLayerColor = (laag: Laag): string => {
   }
 };
 
-// Scale factor: 1mm = 0.01 units in 3D, with min/max bounds for visibility
+// Scale factor: 1mm = 0.02 units in 3D, with min/max bounds for visibility
 const getLayerHeight = (laag: Laag): number => {
   const dikteInMm = laag.dikte || (laag.type === "Isolatie" ? 50 : 3); // Default fallback
   // Scale: divide by 50 to make 50mm = 1 unit, with min 0.05 and max 3
@@ -52,7 +55,7 @@ interface LayerMeshProps {
   index: number;
 }
 
-const LayerMesh = ({ laag, yPosition, height, index }: LayerMeshProps) => {
+const LayerMesh = ({ laag, yPosition, height }: LayerMeshProps) => {
   const color = getLayerColor(laag);
   const artikelgroep = laag.artikelgroep.toLowerCase();
   const isGlass = artikelgroep.includes("glas");
@@ -72,19 +75,21 @@ const LayerMesh = ({ laag, yPosition, height, index }: LayerMeshProps) => {
   );
 };
 
-const SandwichPanel3D = ({ lagen }: SandwichPanel3DProps) => {
+interface SceneProps {
+  lagen: Laag[];
+  controlsRef: React.RefObject<OrbitControlsImpl>;
+}
+
+const Scene = ({ lagen, controlsRef }: SceneProps) => {
   const layerPositions = useMemo(() => {
     const positions: { laag: Laag; yPosition: number; height: number; index: number }[] = [];
     
-    // Reverse order: layer 1 (index 0) is at the top
-    // We build from top to bottom, so start at 0 and go down
+    // Layer 1 (index 0) should be at the TOP
+    // Build from top to bottom: start at top and go down
     let currentY = 0;
 
-    // Process layers in reverse order so layer 1 is on top
-    const reversedLagen = [...lagen].reverse();
-    
-    reversedLagen.forEach((laag, reverseIndex) => {
-      const originalIndex = lagen.length - 1 - reverseIndex;
+    // Process layers in original order (layer 1 first = top, layer N last = bottom)
+    lagen.forEach((laag, index) => {
       const height = getLayerHeight(laag);
       // Place layer below current position (growing downward)
       currentY -= height;
@@ -92,7 +97,7 @@ const SandwichPanel3D = ({ lagen }: SandwichPanel3DProps) => {
         laag,
         yPosition: currentY + height / 2,
         height,
-        index: originalIndex,
+        index,
       });
     });
 
@@ -106,16 +111,8 @@ const SandwichPanel3D = ({ lagen }: SandwichPanel3DProps) => {
     }));
   }, [lagen]);
 
-  if (lagen.length === 0) {
-    return (
-      <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
-        Voeg lagen toe om preview te zien
-      </div>
-    );
-  }
-
   return (
-    <Canvas camera={{ position: [3, 2, 3], fov: 50 }}>
+    <>
       <ambientLight intensity={0.5} />
       <directionalLight position={[5, 5, 5]} intensity={1} />
       <directionalLight position={[-5, -5, -5]} intensity={0.3} />
@@ -126,8 +123,45 @@ const SandwichPanel3D = ({ lagen }: SandwichPanel3DProps) => {
         ))}
       </group>
       
-      <OrbitControls enableZoom={true} enablePan={false} />
-    </Canvas>
+      <OrbitControls ref={controlsRef} enableZoom={true} enablePan={false} />
+    </>
+  );
+};
+
+const SandwichPanel3D = ({ lagen }: SandwichPanel3DProps) => {
+  const controlsRef = useRef<OrbitControlsImpl>(null);
+
+  const handleResetView = () => {
+    if (controlsRef.current) {
+      controlsRef.current.reset();
+    }
+  };
+
+  if (lagen.length === 0) {
+    return (
+      <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
+        Voeg lagen toe om preview te zien
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative w-full h-full">
+      <Canvas camera={{ position: [3, 2, 3], fov: 50 }}>
+        <Scene lagen={lagen} controlsRef={controlsRef} />
+      </Canvas>
+      
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="absolute top-1 right-1 h-6 w-6 bg-background/80 hover:bg-background"
+        onClick={handleResetView}
+        title="Reset weergave"
+      >
+        <RotateCcw className="h-3 w-3" />
+      </Button>
+    </div>
   );
 };
 
