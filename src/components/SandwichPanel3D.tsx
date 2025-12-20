@@ -2,14 +2,15 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { useMemo } from "react";
 
-type LaagType = "volkern" | "isolatie";
-type IsolatieMateriaal = "Pir" | "Pur" | "XPS";
-type VolkernMateriaal = "trespa" | "renolit" | "glas" | "staal" | "aluminium";
+type LaagType = "Volkern" | "Isolatie";
 
 interface Laag {
   id: number;
   type: LaagType;
-  materiaal: IsolatieMateriaal | VolkernMateriaal;
+  artikelgroep: string;
+  artikel: string;
+  optimcode: string;
+  description: string;
 }
 
 interface SandwichPanel3DProps {
@@ -17,27 +18,26 @@ interface SandwichPanel3DProps {
 }
 
 const getLayerColor = (laag: Laag): string => {
-  if (laag.type === "isolatie") {
-    switch (laag.materiaal) {
-      case "Pir": return "#FFD700";
-      case "Pur": return "#FFA500";
-      case "XPS": return "#87CEEB";
-      default: return "#FFD700";
-    }
+  const artikelgroep = laag.artikelgroep.toLowerCase();
+  
+  if (laag.type === "Isolatie") {
+    if (artikelgroep.includes("pir")) return "#FFD700";
+    if (artikelgroep.includes("pur")) return "#FFA500";
+    if (artikelgroep.includes("xps")) return "#87CEEB";
+    return "#FFD700";
   } else {
-    switch (laag.materiaal) {
-      case "trespa": return "#4A4A4A";
-      case "renolit": return "#F5F5DC";
-      case "glas": return "#ADD8E6";
-      case "staal": return "#C0C0C0";
-      case "aluminium": return "#A9A9A9";
-      default: return "#4A4A4A";
-    }
+    if (artikelgroep.includes("trespa") || artikelgroep.includes("tr-")) return "#4A4A4A";
+    if (artikelgroep.includes("renolit")) return "#F5F5DC";
+    if (artikelgroep.includes("glas")) return "#ADD8E6";
+    if (artikelgroep.includes("staal")) return "#C0C0C0";
+    if (artikelgroep.includes("alu")) return "#A9A9A9";
+    if (artikelgroep.includes("polyester")) return "#8FBC8F";
+    return "#4A4A4A";
   }
 };
 
 const getLayerHeight = (laag: Laag): number => {
-  return laag.type === "isolatie" ? 0.4 : 0.1;
+  return laag.type === "Isolatie" ? 0.4 : 0.1;
 };
 
 interface LayerMeshProps {
@@ -48,7 +48,9 @@ interface LayerMeshProps {
 
 const LayerMesh = ({ laag, yPosition, height }: LayerMeshProps) => {
   const color = getLayerColor(laag);
-  const isGlass = laag.materiaal === "glas";
+  const artikelgroep = laag.artikelgroep.toLowerCase();
+  const isGlass = artikelgroep.includes("glas");
+  const isMetal = artikelgroep.includes("staal") || artikelgroep.includes("alu");
 
   return (
     <mesh position={[0, yPosition, 0]}>
@@ -57,8 +59,8 @@ const LayerMesh = ({ laag, yPosition, height }: LayerMeshProps) => {
         color={color}
         transparent={isGlass}
         opacity={isGlass ? 0.6 : 1}
-        metalness={laag.type === "volkern" && (laag.materiaal === "staal" || laag.materiaal === "aluminium") ? 0.8 : 0.1}
-        roughness={laag.type === "volkern" && (laag.materiaal === "staal" || laag.materiaal === "aluminium") ? 0.2 : 0.5}
+        metalness={isMetal ? 0.8 : 0.1}
+        roughness={isMetal ? 0.2 : 0.5}
       />
     </mesh>
   );

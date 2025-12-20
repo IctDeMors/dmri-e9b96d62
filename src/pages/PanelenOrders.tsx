@@ -34,14 +34,30 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 
-type LaagType = "volkern" | "isolatie";
-type IsolatieMateriaal = "Pir" | "Pur" | "XPS";
-type VolkernMateriaal = "trespa" | "renolit" | "glas" | "staal" | "aluminium";
+type LaagType = "Volkern" | "Isolatie";
+
+interface ArtikelData {
+  DESCRIPTION: string;
+  Artikel: string;
+  AcCOUNTNO: number;
+  OPTIMCODE: string;
+  XDIMSIZE: number;
+  YDIMSIZE: number;
+  ZDIMSIZE: number;
+  ALIAS: string;
+  CODE: string;
+  Artikelgroep: string;
+  Eenheid: string;
+  Laagtype: LaagType;
+}
 
 interface Laag {
   id: number;
   type: LaagType;
-  materiaal: IsolatieMateriaal | VolkernMateriaal;
+  artikelgroep: string;
+  artikel: string;
+  optimcode: string;
+  description: string;
 }
 
 interface StuklijstItem {
@@ -68,27 +84,21 @@ interface Order {
   CUSTOMERREFERENCE2: string;
   DELIVERYDATE?: string;
   samenstellingen: Samenstelling[];
-  // Legacy support
-  lagen?: Laag[];
-  stuklijst?: StuklijstItem[];
 }
 
 const STORAGE_KEY = "panelen_custom_orders";
 const COUNTER_KEY = "panelen_order_counter";
 
-const ISOLATIE_MATERIALEN: IsolatieMateriaal[] = ["Pir", "Pur", "XPS"];
-const VOLKERN_MATERIALEN: VolkernMateriaal[] = ["trespa", "renolit", "glas", "staal", "aluminium"];
-
 const migrateOrder = (order: Order): Order => {
-  // Migrate old orders with lagen/stuklijst to new samenstellingen structure
-  if (!order.samenstellingen && (order.lagen || order.stuklijst)) {
+  // Ensure samenstellingen exists
+  if (!order.samenstellingen) {
     return {
       ...order,
       samenstellingen: [{
         id: Date.now(),
         naam: "Samenstelling 1",
-        lagen: order.lagen || [],
-        stuklijst: order.stuklijst || [],
+        lagen: [],
+        stuklijst: [],
       }],
     };
   }
@@ -98,6 +108,7 @@ const migrateOrder = (order: Order): Order => {
 const PanelenOrders = () => {
   const { toast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [artikelen, setArtikelen] = useState<ArtikelData[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [formStep, setFormStep] = useState<1 | 2>(1);
@@ -119,6 +130,14 @@ const PanelenOrders = () => {
     return next;
   };
 
+  // Load artikelen from JSON
+  useEffect(() => {
+    fetch("/Artikelen.json")
+      .then((res) => res.json())
+      .then((data: ArtikelData[]) => setArtikelen(data))
+      .catch((err) => console.error("Error loading artikelen:", err));
+  }, []);
+
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -131,23 +150,52 @@ const PanelenOrders = () => {
     }
   }, []);
 
+  // Get unique artikelgroepen per laagtype
+  const getArtikelgroepen = (laagtype: LaagType): string[] => {
+    const groepen = new Set<string>();
+    artikelen
+      .filter((a) => a.Laagtype === laagtype)
+      .forEach((a) => groepen.add(a.Artikelgroep));
+    return Array.from(groepen).sort();
+  };
+
+  // Get unique artikelen per artikelgroep (1 per OPTIMCODE)
+  const getArtikelenByGroep = (artikelgroep: string): ArtikelData[] => {
+    const seenOptimcodes = new Set<string>();
+    return artikelen
+      .filter((a) => a.Artikelgroep === artikelgroep)
+      .filter((a) => {
+        if (seenOptimcodes.has(a.OPTIMCODE)) return false;
+        seenOptimcodes.add(a.OPTIMCODE);
+        return true;
+      })
+      .sort((a, b) => a.DESCRIPTION.localeCompare(b.DESCRIPTION));
+  };
+
   const saveOrders = (newOrders: Order[]) => {
     setOrders(newOrders);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(newOrders));
   };
 
   const resetForm = () => {
+    // Start with 1 default samenstelling
+    const defaultSamenstelling: Samenstelling = {
+      id: Date.now(),
+      naam: "Samenstelling 1",
+      lagen: [],
+      stuklijst: [],
+    };
     setFormData({
       ALIAS: "",
       NAME: "",
       CUSTOMERREFERENCE1: "",
       CUSTOMERREFERENCE2: "",
       DELIVERYDATE: "",
-      samenstellingen: [],
+      samenstellingen: [defaultSamenstelling],
     });
+    setActiveSamenstellingId(String(defaultSamenstelling.id));
     setEditingOrder(null);
     setFormStep(1);
-    setActiveSamenstellingId("");
   };
 
   const handleOpenDialog = (order?: Order) => {
@@ -243,8 +291,11 @@ const PanelenOrders = () => {
     }
     const newLaag: Laag = {
       id: Date.now(),
-      type: "volkern",
-      materiaal: "trespa",
+      type: "Volkern",
+      artikelgroep: "",
+      artikel: "",
+      optimcode: "",
+      description: "",
     };
     setFormData({
       ...formData,
@@ -254,7 +305,7 @@ const PanelenOrders = () => {
     });
   };
 
-  const updateLaag = (id: number, field: keyof Laag, value: string) => {
+  const updateLaagType = (id: number, newType: LaagType) => {
     const samenstelling = getActiveSamenstelling();
     if (!samenstelling) return;
     setFormData({
@@ -263,15 +314,57 @@ const PanelenOrders = () => {
         s.id === samenstelling.id
           ? {
               ...s,
-              lagen: s.lagen.map((l) => {
-                if (l.id !== id) return l;
-                if (field === "type") {
-                  const newType = value as LaagType;
-                  const defaultMateriaal = newType === "isolatie" ? "Pir" : "trespa";
-                  return { ...l, type: newType, materiaal: defaultMateriaal };
-                }
-                return { ...l, [field]: value };
-              }),
+              lagen: s.lagen.map((l) =>
+                l.id === id
+                  ? { ...l, type: newType, artikelgroep: "", artikel: "", optimcode: "", description: "" }
+                  : l
+              ),
+            }
+          : s
+      ),
+    });
+  };
+
+  const updateLaagArtikelgroep = (id: number, artikelgroep: string) => {
+    const samenstelling = getActiveSamenstelling();
+    if (!samenstelling) return;
+    setFormData({
+      ...formData,
+      samenstellingen: (formData.samenstellingen || []).map((s) =>
+        s.id === samenstelling.id
+          ? {
+              ...s,
+              lagen: s.lagen.map((l) =>
+                l.id === id
+                  ? { ...l, artikelgroep, artikel: "", optimcode: "", description: "" }
+                  : l
+              ),
+            }
+          : s
+      ),
+    });
+  };
+
+  const updateLaagArtikel = (id: number, optimcode: string) => {
+    const samenstelling = getActiveSamenstelling();
+    if (!samenstelling) return;
+    const artikel = artikelen.find((a) => a.OPTIMCODE === optimcode);
+    setFormData({
+      ...formData,
+      samenstellingen: (formData.samenstellingen || []).map((s) =>
+        s.id === samenstelling.id
+          ? {
+              ...s,
+              lagen: s.lagen.map((l) =>
+                l.id === id
+                  ? {
+                      ...l,
+                      artikel: artikel?.Artikel || "",
+                      optimcode: optimcode,
+                      description: artikel?.DESCRIPTION || "",
+                    }
+                  : l
+              ),
             }
           : s
       ),
@@ -426,8 +519,8 @@ const PanelenOrders = () => {
         doc.text("Lagen:", 14, yPos);
         yPos += 4;
         autoTable(doc, {
-          head: [["#", "Type", "Materiaal"]],
-          body: sam.lagen.map((laag, idx) => [idx + 1, laag.type, laag.materiaal]),
+          head: [["#", "Type", "Artikelgroep", "Artikel"]],
+          body: sam.lagen.map((laag, idx) => [idx + 1, laag.type, laag.artikelgroep, laag.description || laag.artikel]),
           startY: yPos,
           styles: { fontSize: 8 },
           headStyles: { fillColor: [12, 58, 131] },
@@ -504,7 +597,9 @@ const PanelenOrders = () => {
           "Samenstelling": sam.naam,
           "#": idx + 1,
           "Type": laag.type,
-          "Materiaal": laag.materiaal,
+          "Artikelgroep": laag.artikelgroep,
+          "Artikel": laag.artikel,
+          "Omschrijving": laag.description,
         });
       });
     });
@@ -528,7 +623,7 @@ const PanelenOrders = () => {
       leverdatum: order.DELIVERYDATE,
       samenstellingen: (order.samenstellingen || []).map((sam) => ({
         naam: sam.naam,
-        lagen: sam.lagen.map((l) => ({ type: l.type, materiaal: l.materiaal })),
+        lagen: sam.lagen.map((l) => ({ type: l.type, artikelgroep: l.artikelgroep, artikel: l.artikel, description: l.description })),
         stuklijst: sam.stuklijst.map((s) => ({
           aantal: s.aantal,
           lengte: s.lengte,
@@ -700,31 +795,48 @@ const PanelenOrders = () => {
                                   {/* Lagen lijst */}
                                   <div className="flex-1 space-y-2 max-h-[200px] overflow-y-auto">
                                     {samenstelling.lagen.map((laag, index) => (
-                                      <div key={laag.id} className="flex items-center gap-2 p-2 bg-muted/50 rounded-md">
-                                        <span className="text-sm font-medium w-8">#{index + 1}</span>
-                                        <Select value={laag.type} onValueChange={(v) => updateLaag(laag.id, "type", v)}>
-                                          <SelectTrigger className="w-[120px]">
-                                            <SelectValue />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="volkern">Volkern</SelectItem>
-                                            <SelectItem value="isolatie">Isolatie</SelectItem>
-                                          </SelectContent>
-                                        </Select>
-                                        <Select value={laag.materiaal} onValueChange={(v) => updateLaag(laag.id, "materiaal", v)}>
-                                          <SelectTrigger className="w-[140px]">
-                                            <SelectValue />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            {laag.type === "isolatie"
-                                              ? ISOLATIE_MATERIALEN.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)
-                                              : VOLKERN_MATERIALEN.map((m) => <SelectItem key={m} value={m}>{m.charAt(0).toUpperCase() + m.slice(1)}</SelectItem>)
-                                            }
-                                          </SelectContent>
-                                        </Select>
-                                        <Button type="button" variant="ghost" size="icon" onClick={() => removeLaag(laag.id)} className="text-destructive hover:text-destructive ml-auto">
-                                          <Trash2 className="w-4 h-4" />
-                                        </Button>
+                                      <div key={laag.id} className="flex flex-col gap-2 p-3 bg-muted/50 rounded-md">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-sm font-medium w-8">#{index + 1}</span>
+                                          <Select value={laag.type} onValueChange={(v) => updateLaagType(laag.id, v as LaagType)}>
+                                            <SelectTrigger className="w-[120px]">
+                                              <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="Volkern">Volkern</SelectItem>
+                                              <SelectItem value="Isolatie">Isolatie</SelectItem>
+                                            </SelectContent>
+                                          </Select>
+                                          <Select value={laag.artikelgroep} onValueChange={(v) => updateLaagArtikelgroep(laag.id, v)}>
+                                            <SelectTrigger className="w-[180px]">
+                                              <SelectValue placeholder="Kies artikelgroep" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              {getArtikelgroepen(laag.type).map((groep) => (
+                                                <SelectItem key={groep} value={groep}>{groep}</SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
+                                          <Button type="button" variant="ghost" size="icon" onClick={() => removeLaag(laag.id)} className="text-destructive hover:text-destructive ml-auto">
+                                            <Trash2 className="w-4 h-4" />
+                                          </Button>
+                                        </div>
+                                        {laag.artikelgroep && (
+                                          <div className="ml-10">
+                                            <Select value={laag.optimcode} onValueChange={(v) => updateLaagArtikel(laag.id, v)}>
+                                              <SelectTrigger className="w-full">
+                                                <SelectValue placeholder="Kies artikel" />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                {getArtikelenByGroep(laag.artikelgroep).map((art) => (
+                                                  <SelectItem key={art.OPTIMCODE} value={art.OPTIMCODE}>
+                                                    {art.DESCRIPTION}
+                                                  </SelectItem>
+                                                ))}
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                        )}
                                       </div>
                                     ))}
                                     {samenstelling.lagen.length === 0 && (
