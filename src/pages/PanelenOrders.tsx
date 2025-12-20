@@ -501,14 +501,61 @@ const PanelenOrders = () => {
     return (order.samenstellingen || []).reduce((acc, s) => acc + s.stuklijst.length, 0);
   };
 
-  const exportOrderToPDF = (order: Order) => {
+  const exportOrderToPDF = async (order: Order) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 14;
+
+    // ===== PAGE 1: Cover page with image =====
+    try {
+      // Load cover image
+      const coverImg = new Image();
+      coverImg.crossOrigin = "anonymous";
+      
+      await new Promise<void>((resolve, reject) => {
+        coverImg.onload = () => resolve();
+        coverImg.onerror = () => reject(new Error("Failed to load cover image"));
+        coverImg.src = "/images/offerte-cover.jpg";
+      });
+
+      // Add cover image - full page
+      const imgRatio = coverImg.height / coverImg.width;
+      const imgWidth = pageWidth;
+      const imgHeight = imgWidth * imgRatio;
+      
+      // Center vertically if image is shorter than page
+      const imgY = imgHeight >= pageHeight ? 0 : 0;
+      doc.addImage(coverImg, "JPEG", 0, imgY, imgWidth, Math.min(imgHeight, pageHeight));
+    } catch (err) {
+      console.error("Could not load cover image:", err);
+      // Fallback: draw a simple cover without image
+      doc.setFillColor(12, 58, 131);
+      doc.rect(0, 0, pageWidth, pageHeight * 0.6, "F");
+    }
+
+    // Add "Offerte" title on cover
+    doc.setFontSize(36);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(255, 255, 255);
+    doc.text("Offerte", margin, pageHeight * 0.35);
+
+    // Add order name / reference on cover
+    doc.setFontSize(20);
+    doc.setFont("helvetica", "normal");
+    const orderTitle = order.CUSTOMERREFERENCE1 || order.NAME || `Order ${order.ORDERNO}`;
+    doc.text(orderTitle, margin, pageHeight * 0.35 + 15);
+
+    // Add order number
+    doc.setFontSize(14);
+    doc.text(`${order.OFFERNO || order.ORDERNO}`, margin, pageHeight * 0.35 + 28);
+
+    // Reset text color for next pages
+    doc.setTextColor(0, 0, 0);
+
+    // ===== PAGE 2+: Content pages =====
+    doc.addPage();
     let yPos = 20;
-    let pageNumber = 1;
-    const totalPages = 1; // Will be calculated dynamically
 
     const addHeader = () => {
       // Header: OFFERTE / Order title
@@ -558,7 +605,6 @@ const PanelenOrders = () => {
         doc.text("Leverdatum :", rightCol, rightY);
         doc.setFont("helvetica", "normal");
         doc.text(`${formatDate(order.DELIVERYDATE)}`, rightCol + 30, rightY);
-        rightY += 5;
       }
 
       yPos += 15;
@@ -568,23 +614,6 @@ const PanelenOrders = () => {
       doc.setLineWidth(0.5);
       doc.line(margin, yPos, pageWidth - margin, yPos);
       yPos += 10;
-    };
-
-    const addFooter = (currentPage: number, totalPages: number) => {
-      doc.setFontSize(8);
-      doc.setFont("helvetica", "normal");
-      doc.text(`PAGINA ${currentPage} / ${totalPages}`, pageWidth - margin - 25, pageHeight - 10);
-    };
-
-    const checkPageBreak = (neededSpace: number) => {
-      if (yPos + neededSpace > pageHeight - 20) {
-        addFooter(pageNumber, totalPages);
-        doc.addPage();
-        pageNumber++;
-        yPos = 20;
-        return true;
-      }
-      return false;
     };
 
     addHeader();
@@ -600,7 +629,7 @@ const PanelenOrders = () => {
       const totalDikte = sam.lagen.reduce((acc, laag) => acc + (laag.dikte || 0), 0);
       
       // Build description with layers
-      const laagDescriptions = sam.lagen.map((laag, idx) => {
+      const laagDescriptions = sam.lagen.map((laag) => {
         const dikteStr = laag.dikte ? `${laag.dikte} MM` : "";
         return `${dikteStr} ${laag.artikelgroep || laag.type}`.trim();
       }).filter(d => d).join("\n");
@@ -691,8 +720,13 @@ const PanelenOrders = () => {
 
     yPos = (doc as any).lastAutoTable.finalY + 15;
 
+    // Check if we need a new page for footer content
+    if (yPos > pageHeight - 60) {
+      doc.addPage();
+      yPos = 20;
+    }
+
     // Footer info
-    checkPageBreak(50);
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
     doc.text(`Offerte geldig tot : 30 dagen na offertedatum`, margin, yPos);
@@ -713,13 +747,13 @@ const PanelenOrders = () => {
     doc.setFont("helvetica", "bold");
     doc.text("De Mors BV", margin, yPos);
 
-    // Add page numbers
+    // Add page numbers (skip cover page)
     const totalPagesCount = doc.getNumberOfPages();
-    for (let i = 1; i <= totalPagesCount; i++) {
+    for (let i = 2; i <= totalPagesCount; i++) {
       doc.setPage(i);
       doc.setFontSize(8);
       doc.setFont("helvetica", "normal");
-      doc.text(`PAGINA ${i} / ${totalPagesCount}`, pageWidth - margin - 25, pageHeight - 10);
+      doc.text(`PAGINA ${i - 1} / ${totalPagesCount - 1}`, pageWidth - margin - 25, pageHeight - 10);
     }
 
     doc.save(`offerte-${order.ORDERNO}.pdf`);
