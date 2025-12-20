@@ -163,16 +163,16 @@ const PanelenOrders = () => {
   const getArtikelgroepen = (laagtype: LaagType): string[] => {
     const groepen = new Set<string>();
     artikelen
-      .filter((a) => a.Laagtype === laagtype)
+      .filter((a) => a.Laagtype === laagtype && a.Artikelgroep && a.Artikelgroep.trim() !== "")
       .forEach((a) => groepen.add(a.Artikelgroep));
-    return Array.from(groepen).sort();
+    return Array.from(groepen).filter(g => g && g.trim() !== "").sort();
   };
 
   // Get unique artikelen per artikelgroep (1 per OPTIMCODE)
   const getArtikelenByGroep = (artikelgroep: string): ArtikelData[] => {
     const seenOptimcodes = new Set<string>();
     return artikelen
-      .filter((a) => a.Artikelgroep === artikelgroep)
+      .filter((a) => a.Artikelgroep === artikelgroep && a.OPTIMCODE && a.OPTIMCODE.trim() !== "")
       .filter((a) => {
         if (seenOptimcodes.has(a.OPTIMCODE)) return false;
         seenOptimcodes.add(a.OPTIMCODE);
