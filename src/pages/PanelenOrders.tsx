@@ -133,8 +133,16 @@ const PanelenOrders = () => {
   // Load artikelen from JSON
   useEffect(() => {
     fetch("/Artikelen.json")
-      .then((res) => res.json())
-      .then((data: ArtikelData[]) => setArtikelen(data))
+      .then((res) => res.text())
+      .then((text) => {
+        // Fix malformed JSON: remove BOM and wrap in array if needed
+        let cleanText = text.replace(/^\uFEFF/, '').trim();
+        if (!cleanText.startsWith('[')) {
+          cleanText = '[' + cleanText + ']';
+        }
+        const data: ArtikelData[] = JSON.parse(cleanText);
+        setArtikelen(data);
+      })
       .catch((err) => console.error("Error loading artikelen:", err));
   }, []);
 
