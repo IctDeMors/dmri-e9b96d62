@@ -58,6 +58,7 @@ interface Laag {
   artikel: string;
   optimcode: string;
   description: string;
+  dikte: number; // ZDIMSIZE in mm
 }
 
 interface StuklijstItem {
@@ -304,6 +305,7 @@ const PanelenOrders = () => {
       artikel: "",
       optimcode: "",
       description: "",
+      dikte: 0,
     };
     setFormData({
       ...formData,
@@ -324,7 +326,7 @@ const PanelenOrders = () => {
               ...s,
               lagen: s.lagen.map((l) =>
                 l.id === id
-                  ? { ...l, type: newType, artikelgroep: "", artikel: "", optimcode: "", description: "" }
+                  ? { ...l, type: newType, artikelgroep: "", artikel: "", optimcode: "", description: "", dikte: 0 }
                   : l
               ),
             }
@@ -344,7 +346,7 @@ const PanelenOrders = () => {
               ...s,
               lagen: s.lagen.map((l) =>
                 l.id === id
-                  ? { ...l, artikelgroep, artikel: "", optimcode: "", description: "" }
+                  ? { ...l, artikelgroep, artikel: "", optimcode: "", description: "", dikte: 0 }
                   : l
               ),
             }
@@ -370,6 +372,7 @@ const PanelenOrders = () => {
                       artikel: artikel?.Artikel || "",
                       optimcode: optimcode,
                       description: artikel?.DESCRIPTION || "",
+                      dikte: artikel?.ZDIMSIZE || 0,
                     }
                   : l
               ),

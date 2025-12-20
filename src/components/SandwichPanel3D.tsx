@@ -11,6 +11,7 @@ interface Laag {
   artikel: string;
   optimcode: string;
   description: string;
+  dikte: number; // ZDIMSIZE in mm
 }
 
 interface SandwichPanel3DProps {
@@ -36,17 +37,22 @@ const getLayerColor = (laag: Laag): string => {
   }
 };
 
+// Scale factor: 1mm = 0.01 units in 3D, with min/max bounds for visibility
 const getLayerHeight = (laag: Laag): number => {
-  return laag.type === "Isolatie" ? 0.4 : 0.1;
+  const dikteInMm = laag.dikte || (laag.type === "Isolatie" ? 50 : 3); // Default fallback
+  // Scale: divide by 50 to make 50mm = 1 unit, with min 0.05 and max 3
+  const scaled = dikteInMm / 50;
+  return Math.max(0.05, Math.min(3, scaled));
 };
 
 interface LayerMeshProps {
   laag: Laag;
   yPosition: number;
   height: number;
+  index: number;
 }
 
-const LayerMesh = ({ laag, yPosition, height }: LayerMeshProps) => {
+const LayerMesh = ({ laag, yPosition, height, index }: LayerMeshProps) => {
   const color = getLayerColor(laag);
   const artikelgroep = laag.artikelgroep.toLowerCase();
   const isGlass = artikelgroep.includes("glas");
@@ -68,25 +74,35 @@ const LayerMesh = ({ laag, yPosition, height }: LayerMeshProps) => {
 
 const SandwichPanel3D = ({ lagen }: SandwichPanel3DProps) => {
   const layerPositions = useMemo(() => {
-    const positions: { laag: Laag; yPosition: number; height: number }[] = [];
+    const positions: { laag: Laag; yPosition: number; height: number; index: number }[] = [];
+    
+    // Reverse order: layer 1 (index 0) is at the top
+    // We build from top to bottom, so start at 0 and go down
     let currentY = 0;
 
-    lagen.forEach((laag) => {
+    // Process layers in reverse order so layer 1 is on top
+    const reversedLagen = [...lagen].reverse();
+    
+    reversedLagen.forEach((laag, reverseIndex) => {
+      const originalIndex = lagen.length - 1 - reverseIndex;
       const height = getLayerHeight(laag);
+      // Place layer below current position (growing downward)
+      currentY -= height;
       positions.push({
         laag,
         yPosition: currentY + height / 2,
         height,
+        index: originalIndex,
       });
-      currentY += height;
     });
 
     // Center the stack vertically
-    const totalHeight = currentY;
+    const totalHeight = Math.abs(currentY);
     const offset = totalHeight / 2;
+    
     return positions.map((p) => ({
       ...p,
-      yPosition: p.yPosition - offset,
+      yPosition: p.yPosition + offset,
     }));
   }, [lagen]);
 
@@ -105,8 +121,8 @@ const SandwichPanel3D = ({ lagen }: SandwichPanel3DProps) => {
       <directionalLight position={[-5, -5, -5]} intensity={0.3} />
       
       <group>
-        {layerPositions.map(({ laag, yPosition, height }) => (
-          <LayerMesh key={laag.id} laag={laag} yPosition={yPosition} height={height} />
+        {layerPositions.map(({ laag, yPosition, height, index }) => (
+          <LayerMesh key={laag.id} laag={laag} yPosition={yPosition} height={height} index={index} />
         ))}
       </group>
       
