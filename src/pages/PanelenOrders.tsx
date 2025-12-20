@@ -534,21 +534,26 @@ const PanelenOrders = () => {
       doc.rect(0, 0, pageWidth, pageHeight * 0.6, "F");
     }
 
-    // Add "Offerte" title on cover
-    doc.setFontSize(36);
+    // Text positioning - more to the right and lower
+    const textX = pageWidth * 0.55; // Right side of page
+    
+    // Add "Offerte" title on cover - in the blue area (around 60% down)
+    doc.setFontSize(48);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(255, 255, 255);
-    doc.text("Offerte", margin, pageHeight * 0.35);
+    doc.text("Offerte", textX, pageHeight * 0.58);
 
-    // Add order name / reference on cover
-    doc.setFontSize(20);
+    // Add order name / reference on cover - in the white area
+    doc.setFontSize(28);
     doc.setFont("helvetica", "normal");
+    doc.setTextColor(60, 60, 60);
     const orderTitle = order.CUSTOMERREFERENCE1 || order.NAME || `Order ${order.ORDERNO}`;
-    doc.text(orderTitle, margin, pageHeight * 0.35 + 15);
+    doc.text(orderTitle, textX, pageHeight * 0.72);
 
-    // Add order number
-    doc.setFontSize(14);
-    doc.text(`${order.OFFERNO || order.ORDERNO}`, margin, pageHeight * 0.35 + 28);
+    // Add order number - in the white area
+    doc.setFontSize(20);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`${order.OFFERNO || order.ORDERNO}`, textX, pageHeight * 0.72 + 12);
 
     // Reset text color for next pages
     doc.setTextColor(0, 0, 0);
