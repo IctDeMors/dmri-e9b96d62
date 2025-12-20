@@ -503,66 +503,227 @@ const PanelenOrders = () => {
 
   const exportOrderToPDF = (order: Order) => {
     const doc = new jsPDF();
-    doc.setFontSize(18);
-    doc.text(`Order: ${order.ORDERNO}`, 14, 20);
-    doc.setFontSize(10);
-    doc.text(`Naam: ${order.NAME}`, 14, 28);
-    doc.text(`Alias: ${order.ALIAS || "-"}`, 14, 34);
-    doc.text(`Klantreferentie: ${order.CUSTOMERREFERENCE1 || "-"}`, 14, 40);
-    doc.text(`Leverdatum: ${formatDate(order.DELIVERYDATE)}`, 14, 46);
-    doc.text(`Geëxporteerd op: ${new Date().toLocaleDateString("nl-NL")}`, 14, 52);
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 14;
+    let yPos = 20;
+    let pageNumber = 1;
+    const totalPages = 1; // Will be calculated dynamically
 
-    let yPos = 65;
+    const addHeader = () => {
+      // Header: OFFERTE / Order title
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.text("OFFERTE", margin, yPos);
+      yPos += 12;
+
+      // Customer info and order details side by side
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      
+      // Left side - Customer
+      doc.text("De Mors BV", margin, yPos);
+      yPos += 5;
+      if (order.NAME) {
+        doc.text(`T.a.v. ${order.NAME}`, margin, yPos);
+        yPos += 5;
+      }
+      yPos += 5;
+
+      // Right side - Order details
+      const rightCol = pageWidth - margin - 60;
+      let rightY = yPos - 15;
+      doc.setFont("helvetica", "bold");
+      doc.text("Offertenr. :", rightCol, rightY);
+      doc.setFont("helvetica", "normal");
+      doc.text(`${order.OFFERNO || order.ORDERNO}`, rightCol + 30, rightY);
+      rightY += 5;
+      
+      doc.setFont("helvetica", "bold");
+      doc.text("Ordernr. :", rightCol, rightY);
+      doc.setFont("helvetica", "normal");
+      doc.text(`${order.ORDERNO}`, rightCol + 30, rightY);
+      rightY += 5;
+
+      if (order.CUSTOMERREFERENCE1) {
+        doc.setFont("helvetica", "bold");
+        doc.text("Uw referentie :", rightCol, rightY);
+        doc.setFont("helvetica", "normal");
+        doc.text(`${order.CUSTOMERREFERENCE1}`, rightCol + 30, rightY);
+        rightY += 5;
+      }
+
+      if (order.DELIVERYDATE) {
+        doc.setFont("helvetica", "bold");
+        doc.text("Leverdatum :", rightCol, rightY);
+        doc.setFont("helvetica", "normal");
+        doc.text(`${formatDate(order.DELIVERYDATE)}`, rightCol + 30, rightY);
+        rightY += 5;
+      }
+
+      yPos += 15;
+
+      // Horizontal line
+      doc.setDrawColor(0);
+      doc.setLineWidth(0.5);
+      doc.line(margin, yPos, pageWidth - margin, yPos);
+      yPos += 10;
+    };
+
+    const addFooter = (currentPage: number, totalPages: number) => {
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.text(`PAGINA ${currentPage} / ${totalPages}`, pageWidth - margin - 25, pageHeight - 10);
+    };
+
+    const checkPageBreak = (neededSpace: number) => {
+      if (yPos + neededSpace > pageHeight - 20) {
+        addFooter(pageNumber, totalPages);
+        doc.addPage();
+        pageNumber++;
+        yPos = 20;
+        return true;
+      }
+      return false;
+    };
+
+    addHeader();
+
+    // Build table data for each samenstelling
+    const tableBody: any[][] = [];
+    let regelNr = 0;
 
     (order.samenstellingen || []).forEach((sam) => {
-      if (yPos > 250) {
-        doc.addPage();
-        yPos = 20;
-      }
-
-      doc.setFontSize(12);
-      doc.text(sam.naam, 14, yPos);
-      yPos += 6;
-
-      // Lagen tabel
-      if (sam.lagen.length > 0) {
-        doc.setFontSize(10);
-        doc.text("Lagen:", 14, yPos);
-        yPos += 4;
-        autoTable(doc, {
-          head: [["#", "Type", "Artikelgroep", "Artikel"]],
-          body: sam.lagen.map((laag, idx) => [idx + 1, laag.type, laag.artikelgroep, laag.description || laag.artikel]),
-          startY: yPos,
-          styles: { fontSize: 8 },
-          headStyles: { fillColor: [12, 58, 131] },
-          margin: { left: 14 },
-        });
-        yPos = (doc as any).lastAutoTable.finalY + 8;
-      }
-
-      // Stuklijst tabel
+      regelNr++;
+      
+      // Calculate total thickness
+      const totalDikte = sam.lagen.reduce((acc, laag) => acc + (laag.dikte || 0), 0);
+      
+      // Build description with layers
+      const laagDescriptions = sam.lagen.map((laag, idx) => {
+        const dikteStr = laag.dikte ? `${laag.dikte} MM` : "";
+        return `${dikteStr} ${laag.artikelgroep || laag.type}`.trim();
+      }).filter(d => d).join("\n");
+      
+      const hoofdOmschrijving = `SANDWICHPANEEL Totale pakketdikte ${totalDikte} mm\n${laagDescriptions}`;
+      
+      // Add main row with first stuklijst item
       if (sam.stuklijst.length > 0) {
-        if (yPos > 230) {
-          doc.addPage();
-          yPos = 20;
+        const firstItem = sam.stuklijst[0];
+        tableBody.push([
+          `${regelNr.toString().padStart(2, '0')}.`,
+          hoofdOmschrijving,
+          `${firstItem.lengte} x ${firstItem.breedte}`,
+          firstItem.aantal.toString(),
+          firstItem.merk || "",
+          ""
+        ]);
+
+        // Add remaining stuklijst items as sub-rows
+        for (let i = 1; i < sam.stuklijst.length; i++) {
+          const item = sam.stuklijst[i];
+          tableBody.push([
+            "",
+            "",
+            `${item.lengte} x ${item.breedte}`,
+            item.aantal.toString(),
+            item.merk || "",
+            ""
+          ]);
         }
-        doc.setFontSize(10);
-        doc.text("Stuklijst:", 14, yPos);
-        yPos += 4;
-        autoTable(doc, {
-          head: [["#", "Aantal", "Lengte (mm)", "Breedte (mm)", "Merk"]],
-          body: sam.stuklijst.map((item, idx) => [idx + 1, item.aantal, item.lengte, item.breedte, item.merk || "-"]),
-          startY: yPos,
-          styles: { fontSize: 8 },
-          headStyles: { fillColor: [100, 100, 100] },
-          margin: { left: 14 },
-        });
-        yPos = (doc as any).lastAutoTable.finalY + 12;
+
+        // Add totaal row
+        const totalAantal = sam.stuklijst.reduce((acc, item) => acc + item.aantal, 0);
+        const totalM2 = sam.stuklijst.reduce((acc, item) => {
+          return acc + (item.aantal * item.lengte * item.breedte / 1000000);
+        }, 0);
+        tableBody.push([
+          "",
+          "Totaal",
+          "",
+          totalAantal.toString(),
+          `${totalM2.toFixed(2)} m²`,
+          ""
+        ]);
+      } else {
+        tableBody.push([
+          `${regelNr.toString().padStart(2, '0')}.`,
+          hoofdOmschrijving,
+          "-",
+          "-",
+          "-",
+          ""
+        ]);
       }
     });
 
-    doc.save(`order-${order.ORDERNO}.pdf`);
-    toast({ title: "Geëxporteerd", description: `PDF voor order ${order.ORDERNO} is gedownload` });
+    // Create the main table
+    autoTable(doc, {
+      head: [["Regel", "Omschrijving", "Afmeting", "Aantal", "Eenheid", "Bedrag"]],
+      body: tableBody,
+      startY: yPos,
+      styles: { 
+        fontSize: 8,
+        cellPadding: 2,
+        overflow: 'linebreak',
+      },
+      headStyles: { 
+        fillColor: [12, 58, 131],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+      },
+      columnStyles: {
+        0: { cellWidth: 15 },
+        1: { cellWidth: 'auto' },
+        2: { cellWidth: 25 },
+        3: { cellWidth: 15, halign: 'right' },
+        4: { cellWidth: 25, halign: 'right' },
+        5: { cellWidth: 20, halign: 'right' },
+      },
+      margin: { left: margin, right: margin },
+      didParseCell: (data) => {
+        // Make "Totaal" row bold
+        if (data.row.raw && Array.isArray(data.row.raw) && data.row.raw[1] === "Totaal") {
+          data.cell.styles.fontStyle = 'bold';
+        }
+      },
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 15;
+
+    // Footer info
+    checkPageBreak(50);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Offerte geldig tot : 30 dagen na offertedatum`, margin, yPos);
+    yPos += 5;
+    doc.text(`Prijs : Netto excl. BTW`, margin, yPos);
+    yPos += 5;
+    if (order.DELIVERYDATE) {
+      doc.text(`Levertijd : ${formatDate(order.DELIVERYDATE)}`, margin, yPos);
+      yPos += 5;
+    }
+    yPos += 10;
+
+    // Closing
+    doc.text("Wij hopen u hiermee een passende aanbieding te hebben gemaakt.", margin, yPos);
+    yPos += 10;
+    doc.text("Met vriendelijke groet,", margin, yPos);
+    yPos += 10;
+    doc.setFont("helvetica", "bold");
+    doc.text("De Mors BV", margin, yPos);
+
+    // Add page numbers
+    const totalPagesCount = doc.getNumberOfPages();
+    for (let i = 1; i <= totalPagesCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.text(`PAGINA ${i} / ${totalPagesCount}`, pageWidth - margin - 25, pageHeight - 10);
+    }
+
+    doc.save(`offerte-${order.ORDERNO}.pdf`);
+    toast({ title: "Geëxporteerd", description: `Offerte PDF voor order ${order.ORDERNO} is gedownload` });
   };
 
   const exportOrderToExcel = (order: Order) => {
