@@ -45,10 +45,10 @@ function createPanel(
 }
 
 /**
- * Creates back wall panels with specific layout:
- * - Left panel: 900mm with left corner flange
- * - Middle panel: remaining width (passtrook)
- * - Right panel: 900mm with right corner flange
+ * Creates back wall panels using the standard element pattern:
+ * - First panel: "Wand Flens rechts" (corner flange left, connection flange right)
+ * - Middle panels: "Wand Flens links en rechts" (connection flanges both sides)
+ * - Last panel: "Wand Flens links" (connection flange left, corner flange right)
  */
 function createBackWallPanels(
   wallId: string,
@@ -58,107 +58,30 @@ function createBackWallPanels(
   posZ: number,
   rotation: number
 ): WallPanel[] {
-  const panels: WallPanel[] = [];
-  
-  // Fixed widths for left and right panels
-  const sideWidth = MAX_PANEL_WIDTH; // 900mm
-  const middleWidth = wallLength - (2 * sideWidth);
-  
-  if (wallLength <= 2 * sideWidth) {
-    // Wall too short for 3 panels, use 2 panels
-    if (wallLength <= sideWidth) {
-      // Single panel
-      panels.push(createPanel(
-        `${wallId}-0`,
-        startX + wallLength / 2,
-        posZ,
-        wallLength,
-        wallHeight,
-        rotation,
-        "both",
-        DEFAULT_FLANGE_WIDTH,
-        DEFAULT_FLANGE_WIDTH,
-        true  // flipFlanges for back wall
-      ));
-    } else {
-      // Two panels
-      const halfWidth = wallLength / 2;
-      panels.push(createPanel(
-        `${wallId}-left`,
-        startX + halfWidth / 2,
-        posZ,
-        halfWidth,
-        wallHeight,
-        rotation,
-        "left",
-        DEFAULT_FLANGE_WIDTH,
-        DEFAULT_FLANGE_WIDTH,
-        true  // flipFlanges for back wall
-      ));
-      panels.push(createPanel(
-        `${wallId}-right`,
-        startX + halfWidth + halfWidth / 2,
-        posZ,
-        halfWidth,
-        wallHeight,
-        rotation,
-        "right",
-        DEFAULT_FLANGE_WIDTH,
-        DEFAULT_FLANGE_WIDTH,
-        true  // flipFlanges for back wall
-      ));
-    }
-  } else {
-    // Three panels: left 900mm, middle passtrook, right 900mm
-    // Left panel with corner flange
-    panels.push(createPanel(
-      `${wallId}-left`,
-      startX + sideWidth / 2,
-      posZ,
-      sideWidth,
-      wallHeight,
-      rotation,
-      "left",
-      DEFAULT_FLANGE_WIDTH,
-      DEFAULT_FLANGE_WIDTH,
-      true  // flipFlanges for back wall
-    ));
-    
-    // Middle panel (passtrook) - no flanges, butts against adjacent panels
-    panels.push(createPanel(
-      `${wallId}-middle`,
-      startX + sideWidth + middleWidth / 2,
-      posZ,
-      middleWidth,
-      wallHeight,
-      rotation,
-      "none",
-      DEFAULT_FLANGE_WIDTH,
-      DEFAULT_FLANGE_WIDTH,
-      true  // flipFlanges for back wall
-    ));
-    
-    // Right panel with corner flange
-    panels.push(createPanel(
-      `${wallId}-right`,
-      startX + sideWidth + middleWidth + sideWidth / 2,
-      posZ,
-      sideWidth,
-      wallHeight,
-      rotation,
-      "right",
-      DEFAULT_FLANGE_WIDTH,
-      DEFAULT_FLANGE_WIDTH,
-      true  // flipFlanges for back wall
-    ));
-  }
-  
-  return panels;
+  // Use the standard createWallPanels with corner flanges on both ends
+  return createWallPanels(
+    wallId,
+    wallLength,
+    wallHeight,
+    startX,
+    posZ,
+    rotation,
+    true,   // startFlange (left corner)
+    true,   // endFlange (right corner)
+    DEFAULT_FLANGE_WIDTH,
+    DEFAULT_FLANGE_WIDTH,
+    true    // flipFlanges for back wall (flanges extend to interior)
+  );
 }
 
 /**
- * Divides a wall segment into panels.
- * Uses max 900mm panels and fills remainder with a passtrook (filler strip).
+ * Divides a wall segment into panels following the element pattern:
+ * - First panel: "Wand Flens rechts" (flange on right side = left of viewing direction)
+ * - Middle panels: "Wand Flens links en rechts" (flanges on both sides)
+ * - Last panel: "Wand Flens links" (flange on left side = right of viewing direction)
+ * 
+ * Max panel width: 900mm
+ * Max combined flange length: 1210mm (panel + 2 flanges)
  */
 function createWallPanels(
   wallId: string,
@@ -177,59 +100,79 @@ function createWallPanels(
   
   if (wallLength <= 0) return panels;
   
-  // Calculate how many full panels and remainder
-  const numFullPanels = Math.floor(wallLength / MAX_PANEL_WIDTH);
-  const remainder = wallLength % MAX_PANEL_WIDTH;
-  
-  // Determine panel distribution
-  let panelWidths: number[] = [];
-  
-  if (numFullPanels === 0) {
-    panelWidths = [wallLength];
-  } else if (remainder === 0) {
-    panelWidths = Array(numFullPanels).fill(MAX_PANEL_WIDTH);
-  } else if (remainder >= MIN_PANEL_WIDTH) {
-    panelWidths = [...Array(numFullPanels).fill(MAX_PANEL_WIDTH), remainder];
-  } else {
-    const adjustedWidth = wallLength / numFullPanels;
-    panelWidths = Array(numFullPanels).fill(adjustedWidth);
-  }
+  // Calculate panel distribution
+  // Each panel can be max 900mm wide
+  const numFullPanels = Math.ceil(wallLength / MAX_PANEL_WIDTH);
+  const panelWidth = wallLength / numFullPanels;
   
   let currentX = startX;
   
-  panelWidths.forEach((width, index) => {
-    const isFirst = index === 0;
-    const isLast = index === panelWidths.length - 1;
+  for (let i = 0; i < numFullPanels; i++) {
+    const isFirst = i === 0;
+    const isLast = i === numFullPanels - 1;
+    const isOnly = numFullPanels === 1;
     
-    const hasLeftFlange = isFirst && startFlange;
-    const hasRightFlange = isLast && endFlange;
+    // Determine flange configuration based on position:
+    // - First panel: corner flange on left (if startFlange), connection flange on right
+    // - Middle panels: connection flanges on both sides  
+    // - Last panel: connection flange on left, corner flange on right (if endFlange)
+    // - Single panel: corner flanges on both sides (if applicable)
     
-    const flangeType: FlangeConfig["type"] = 
-      hasLeftFlange && hasRightFlange ? "both" :
-      hasLeftFlange ? "left" :
-      hasRightFlange ? "right" : "none";
+    let flangeType: FlangeConfig["type"];
+    let leftFlangeW = 0;
+    let rightFlangeW = 0;
     
-    const flange: FlangeConfig = {
-      type: flangeType,
-      leftWidth: hasLeftFlange ? flangeWidth : 0,
-      rightWidth: hasRightFlange ? endFlangeWidth : 0,
-    };
+    if (isOnly) {
+      // Single panel - flanges based on wall position
+      if (startFlange && endFlange) {
+        flangeType = "both";
+        leftFlangeW = flangeWidth;
+        rightFlangeW = endFlangeWidth;
+      } else if (startFlange) {
+        flangeType = "left";
+        leftFlangeW = flangeWidth;
+      } else if (endFlange) {
+        flangeType = "right";
+        rightFlangeW = endFlangeWidth;
+      } else {
+        flangeType = "none";
+      }
+    } else if (isFirst) {
+      // First panel of multiple - left corner flange (if applicable), right connection flange
+      flangeType = startFlange ? "both" : "right";
+      leftFlangeW = startFlange ? flangeWidth : 0;
+      rightFlangeW = DEFAULT_FLANGE_WIDTH; // Connection flange to next panel
+    } else if (isLast) {
+      // Last panel of multiple - left connection flange, right corner flange (if applicable)
+      flangeType = endFlange ? "both" : "left";
+      leftFlangeW = DEFAULT_FLANGE_WIDTH; // Connection flange from previous panel
+      rightFlangeW = endFlange ? endFlangeWidth : 0;
+    } else {
+      // Middle panel - flanges on both sides for connections
+      flangeType = "both";
+      leftFlangeW = DEFAULT_FLANGE_WIDTH;
+      rightFlangeW = DEFAULT_FLANGE_WIDTH;
+    }
     
-    const panelCenterX = currentX + width / 2;
+    const panelCenterX = currentX + panelWidth / 2;
     
     panels.push({
-      id: `${wallId}-${index}`,
+      id: `${wallId}-${i}`,
       x: panelCenterX,
       z: posZ,
-      width: width,
+      width: panelWidth,
       height: wallHeight,
       rotation: rotation,
-      flange,
+      flange: {
+        type: flangeType,
+        leftWidth: leftFlangeW,
+        rightWidth: rightFlangeW,
+      },
       flipFlanges,
     });
     
-    currentX += width;
-  });
+    currentX += panelWidth;
+  }
   
   return panels;
 }
