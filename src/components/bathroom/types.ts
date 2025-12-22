@@ -43,6 +43,8 @@ export interface WallPanel {
   rotation: number;   // rotatie in graden rond Y-as
   // Flens configuratie
   flange: FlangeConfig;
+  // Flip flanges direction (for walls where flanges should point inward instead of outward)
+  flipFlanges?: boolean;
 }
 
 export interface PartitionWall {
