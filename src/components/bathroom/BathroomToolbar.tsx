@@ -165,6 +165,43 @@ export const BathroomToolbar = ({
 
       <Separator />
 
+      {/* Door Configuration */}
+      <div className="space-y-3">
+        <h3 className="font-medium text-sm">Deuropening</h3>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-xs">Positie (mm)</Label>
+            <Input
+              type="number"
+              value={config.doorConfig.position}
+              onChange={(e) => onUpdateConfig({
+                doorConfig: {
+                  ...config.doorConfig,
+                  position: parseInt(e.target.value) || 0,
+                },
+              })}
+              className="h-8 text-sm"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Breedte (mm)</Label>
+            <Input
+              type="number"
+              value={config.doorConfig.width}
+              onChange={(e) => onUpdateConfig({
+                doorConfig: {
+                  ...config.doorConfig,
+                  width: parseInt(e.target.value) || 0,
+                },
+              })}
+              className="h-8 text-sm"
+            />
+          </div>
+        </div>
+      </div>
+
+      <Separator />
+
       {/* Add Sanitary Items */}
       <div className="space-y-2">
         <Label className="text-sm">Sanitair toevoegen</Label>

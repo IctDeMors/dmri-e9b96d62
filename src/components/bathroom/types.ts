@@ -56,6 +56,12 @@ export interface PartitionWall {
   panels?: WallPanel[];
 }
 
+export interface DoorConfig {
+  position: number;    // Position along front wall in mm (from left edge)
+  width: number;       // Door width in mm (typically 700-900mm)
+  height: number;      // Door height in mm (typically 2100mm)
+}
+
 export interface LShapeConfig {
   // Main rectangle dimensions
   mainWidth: number;
@@ -71,6 +77,7 @@ export interface BathroomConfig {
   floorShape: FloorShape;
   dimensions: Dimensions;
   lShapeConfig?: LShapeConfig;
+  doorConfig: DoorConfig;
   sanitaryItems: SanitaryItem[];
   partitionWalls: PartitionWall[];
   showGrid: boolean;
@@ -94,6 +101,11 @@ export const DEFAULT_BATHROOM_CONFIG: BathroomConfig = {
     width: 2400,
     depth: 1800,
     height: 2400,
+  },
+  doorConfig: {
+    position: 800,    // 800mm from left edge
+    width: 800,       // 800mm door width
+    height: 2100,     // 2100mm door height
   },
   sanitaryItems: [],
   partitionWalls: [],
