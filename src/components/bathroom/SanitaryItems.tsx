@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ThreeEvent } from "@react-three/fiber";
+import { useRef, useEffect } from "react";
+import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { SanitaryItem, SanitaryType } from "./types";
 
@@ -7,7 +7,9 @@ interface SanitaryItemMeshProps {
   item: SanitaryItem;
   isSelected: boolean;
   onSelect: (id: string) => void;
-  onDrag: (id: string, position: { x: number; z: number }) => void;
+  isDragging: boolean;
+  onStartDrag: () => void;
+  onEndDrag: () => void;
 }
 
 // Scale: 1000mm = 1 unit
@@ -25,29 +27,35 @@ const COLORS: Record<SanitaryType, string> = {
   vanity: "#8B4513",
 };
 
-export const SanitaryItemMesh = ({ item, isSelected, onSelect, onDrag }: SanitaryItemMeshProps) => {
-  const [isDragging, setIsDragging] = useState(false);
+export const SanitaryItemMesh = ({ 
+  item, 
+  isSelected, 
+  onSelect, 
+  isDragging,
+  onStartDrag,
+  onEndDrag
+}: SanitaryItemMeshProps) => {
+  const groupRef = useRef<THREE.Group>(null);
   
   const dims = DIMENSIONS[item.type];
   const w = dims.width * SCALE;
   const d = dims.depth * SCALE;
   const h = dims.height * SCALE;
-  
-  const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
+
+  const handleClick = (e: any) => {
     e.stopPropagation();
     onSelect(item.id);
-    setIsDragging(true);
-    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
   };
-  
-  const handlePointerUp = () => {
-    setIsDragging(false);
+
+  const handlePointerDown = (e: any) => {
+    e.stopPropagation();
+    onSelect(item.id);
+    onStartDrag();
   };
-  
-  const handlePointerMove = (e: ThreeEvent<PointerEvent>) => {
-    if (isDragging && e.point) {
-      onDrag(item.id, { x: e.point.x, z: e.point.z });
-    }
+
+  const handlePointerUp = (e: any) => {
+    e.stopPropagation();
+    onEndDrag();
   };
 
   const renderItem = () => {
@@ -111,22 +119,31 @@ export const SanitaryItemMesh = ({ item, isSelected, onSelect, onDrag }: Sanitar
     }
   };
 
+  // Get bounding box size for selection ring
+  const maxSize = Math.max(w, d) / 2 + 0.1;
+
   return (
     <group
+      ref={groupRef}
       position={[item.position.x * SCALE, 0, item.position.z * SCALE]}
       rotation={[0, (item.rotation * Math.PI) / 180, 0]}
+      onClick={handleClick}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
-      onPointerMove={handlePointerMove}
     >
       {renderItem()}
-      {/* Selection highlight */}
+      {/* Selection highlight - ground ring */}
       {isSelected && (
-        <mesh position={[0, 0.01, 0]}>
-          <ringGeometry args={[0.4, 0.45, 32]} />
+        <mesh position={[0, 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[maxSize, maxSize + 0.05, 32]} />
           <meshBasicMaterial color="#3B82F6" side={THREE.DoubleSide} />
         </mesh>
       )}
+      {/* Invisible hit area for easier clicking */}
+      <mesh visible={false}>
+        <boxGeometry args={[w + 0.1, h + 0.1, d + 0.1]} />
+        <meshBasicMaterial transparent opacity={0} />
+      </mesh>
     </group>
   );
 };
@@ -136,9 +153,100 @@ interface SanitaryItemsProps {
   selectedId: string | null;
   onSelect: (id: string) => void;
   onDrag: (id: string, position: { x: number; z: number }) => void;
+  bathroomDimensions: { width: number; depth: number };
 }
 
-export const SanitaryItems = ({ items, selectedId, onSelect, onDrag }: SanitaryItemsProps) => {
+export const SanitaryItems = ({ 
+  items, 
+  selectedId, 
+  onSelect, 
+  onDrag,
+  bathroomDimensions
+}: SanitaryItemsProps) => {
+  const { gl, camera, raycaster } = useThree();
+  const isDraggingRef = useRef(false);
+  const floorPlaneRef = useRef(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0));
+  
+  useEffect(() => {
+    const handlePointerMove = (event: PointerEvent) => {
+      if (!isDraggingRef.current || !selectedId) return;
+      
+      // Calculate normalized device coordinates
+      const rect = gl.domElement.getBoundingClientRect();
+      const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      
+      // Raycast to floor plane
+      raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+      const intersection = new THREE.Vector3();
+      raycaster.ray.intersectPlane(floorPlaneRef.current, intersection);
+      
+      if (intersection) {
+        // Convert to mm and snap to walls
+        const posX = intersection.x / SCALE;
+        const posZ = intersection.z / SCALE;
+        
+        // Get item dimensions
+        const item = items.find(i => i.id === selectedId);
+        if (item) {
+          const dims = DIMENSIONS[item.type];
+          const halfW = dims.width / 2;
+          const halfD = dims.depth / 2;
+          
+          // Snap to nearest wall (within threshold)
+          const snapThreshold = 200; // 200mm snap distance
+          const wallOffset = 50; // 50mm from wall
+          
+          const halfBathW = bathroomDimensions.width / 2;
+          const halfBathD = bathroomDimensions.depth / 2;
+          
+          let snappedX = posX;
+          let snappedZ = posZ;
+          
+          // Check distance to each wall and snap if close
+          // Left wall
+          if (Math.abs(posX - (-halfBathW + halfD + wallOffset)) < snapThreshold) {
+            snappedX = -halfBathW + halfD + wallOffset;
+          }
+          // Right wall
+          if (Math.abs(posX - (halfBathW - halfD - wallOffset)) < snapThreshold) {
+            snappedX = halfBathW - halfD - wallOffset;
+          }
+          // Back wall
+          if (Math.abs(posZ - (-halfBathD + halfD + wallOffset)) < snapThreshold) {
+            snappedZ = -halfBathD + halfD + wallOffset;
+          }
+          
+          // Clamp to bathroom bounds
+          const clampedX = Math.max(-halfBathW + halfW + wallOffset, Math.min(halfBathW - halfW - wallOffset, snappedX));
+          const clampedZ = Math.max(-halfBathD + halfD + wallOffset, Math.min(halfBathD, snappedZ));
+          
+          onDrag(selectedId, { x: clampedX, z: clampedZ });
+        }
+      }
+    };
+    
+    const handlePointerUp = () => {
+      isDraggingRef.current = false;
+    };
+    
+    gl.domElement.addEventListener('pointermove', handlePointerMove);
+    gl.domElement.addEventListener('pointerup', handlePointerUp);
+    
+    return () => {
+      gl.domElement.removeEventListener('pointermove', handlePointerMove);
+      gl.domElement.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, [gl, camera, raycaster, selectedId, onDrag, items, bathroomDimensions]);
+
+  const handleStartDrag = () => {
+    isDraggingRef.current = true;
+  };
+  
+  const handleEndDrag = () => {
+    isDraggingRef.current = false;
+  };
+
   return (
     <group>
       {items.map((item) => (
@@ -147,7 +255,9 @@ export const SanitaryItems = ({ items, selectedId, onSelect, onDrag }: SanitaryI
           item={item}
           isSelected={selectedId === item.id}
           onSelect={onSelect}
-          onDrag={onDrag}
+          isDragging={isDraggingRef.current && selectedId === item.id}
+          onStartDrag={handleStartDrag}
+          onEndDrag={handleEndDrag}
         />
       ))}
     </group>

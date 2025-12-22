@@ -70,21 +70,14 @@ export const Bathroom3DConfigurator = ({
   }, [selectedItemId, config.sanitaryItems, updateConfig]);
 
   const handleDragItem = useCallback((id: string, position: { x: number; z: number }) => {
-    // Clamp position to bathroom bounds
-    const halfWidth = config.dimensions.width / 2;
-    const halfDepth = config.dimensions.depth / 2;
-    
-    const clampedX = Math.max(-halfWidth, Math.min(halfWidth, position.x));
-    const clampedZ = Math.max(-halfDepth, Math.min(halfDepth, position.z));
-    
     updateConfig({
       sanitaryItems: config.sanitaryItems.map((item) =>
         item.id === id
-          ? { ...item, position: { x: clampedX, z: clampedZ } }
+          ? { ...item, position }
           : item
       ),
     });
-  }, [config.dimensions, config.sanitaryItems, updateConfig]);
+  }, [config.sanitaryItems, updateConfig]);
 
   const handleResetView = useCallback(() => {
     if (controlsRef.current) {
@@ -128,7 +121,6 @@ export const Bathroom3DConfigurator = ({
             near: 0.1,
             far: 100,
           }}
-          onClick={() => setSelectedItemId(null)}
         >
           <BathroomScene
             config={config}
