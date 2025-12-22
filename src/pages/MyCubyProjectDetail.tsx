@@ -8,9 +8,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Plus, Trash2, Edit, Bath, Copy, Download } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit, Bath, Copy, Download, Box } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { Bathroom3DConfigurator } from "@/components/bathroom/Bathroom3DConfigurator";
 import type { Project, BathroomModel } from "./MyCubyProjecten";
 
 const STORAGE_KEY = "mycuby-projects";
@@ -40,6 +41,7 @@ const MyCubyProjectDetail = () => {
   const navigate = useNavigate();
   const [project, setProject] = useState<Project | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [is3DDialogOpen, setIs3DDialogOpen] = useState(false);
   const [editingModel, setEditingModel] = useState<BathroomModel | null>(null);
   const [formData, setFormData] = useState({ 
     name: "", 
@@ -275,12 +277,29 @@ const MyCubyProjectDetail = () => {
                   <CardTitle>Badkamer Modellen</CardTitle>
                   <CardDescription>Configureer de badkamer modellen voor dit project</CardDescription>
                 </div>
-                <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Nieuw Model
-                    </Button>
+                <div className="flex gap-2">
+                  <Dialog open={is3DDialogOpen} onOpenChange={setIs3DDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline">
+                        <Box className="h-4 w-4 mr-2" />
+                        3D Configurator
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-[90vw] w-[1200px] max-h-[90vh]">
+                      <DialogHeader>
+                        <DialogTitle>3D Badkamer Configurator</DialogTitle>
+                      </DialogHeader>
+                      <div className="mt-4">
+                        <Bathroom3DConfigurator />
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                  <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
+                    <DialogTrigger asChild>
+                      <Button>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Nieuw Model
+                      </Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
@@ -397,6 +416,7 @@ const MyCubyProjectDetail = () => {
                     </form>
                   </DialogContent>
                 </Dialog>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
