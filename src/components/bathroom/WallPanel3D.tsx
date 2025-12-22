@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import * as THREE from "three";
-import type { WallPanel, FlangeConfig } from "./types";
+import type { WallPanel } from "./types";
 
 interface WallPanel3DProps {
   panel: WallPanel;
@@ -13,11 +13,14 @@ const SCALE = 1 / 1000;
 const PANEL_THICKNESS = 19; // 19mm panel thickness
 
 /**
- * Creates a 3D shape for a wall panel with flanges
- * Flange types:
- * - __|  (right flange only)
- * - |__| (both flanges)
- * - |__  (left flange only)
+ * Creates a 3D shape for a wall panel with flanges pointing OUTWARD
+ * View from inside bathroom looking at wall:
+ * - Flanges bend away from viewer (toward outside of bathroom)
+ * 
+ * Flange types (viewed from inside):
+ * - __|  (right flange - bends outward on right side)
+ * - |__| (both flanges - bends outward on both sides)
+ * - |__  (left flange - bends outward on left side)
  * - __   (no flanges, flat panel)
  */
 export const WallPanel3D = ({ panel, selected, onClick }: WallPanel3DProps) => {
@@ -33,36 +36,44 @@ export const WallPanel3D = ({ panel, selected, onClick }: WallPanel3DProps) => {
       : 0;
 
     // Create the shape from the top view (X-Z plane, extruded along Y)
+    // Panel faces +Z direction (toward inside of bathroom)
+    // Flanges go toward -Z direction (toward outside of bathroom)
     const shape = new THREE.Shape();
 
-    // Start at bottom-left of main panel
-    shape.moveTo(-w / 2, 0);
+    // Start at front-left of main panel (inside face)
+    shape.moveTo(-w / 2, t);
 
-    // Left flange (if present) - goes backward (negative Z)
+    // Left flange (if present) - goes backward (toward outside, positive Z in local coords means toward back)
     if (leftFlange > 0) {
-      shape.lineTo(-w / 2, -leftFlange);
-      shape.lineTo(-w / 2 + t, -leftFlange);
-      shape.lineTo(-w / 2 + t, -t);
-      shape.lineTo(-w / 2 + t, 0);
+      // Go to back of main panel
+      shape.lineTo(-w / 2, 0);
+      // Extend flange outward (away from bathroom interior)
+      shape.lineTo(-w / 2 - leftFlange, 0);
+      shape.lineTo(-w / 2 - leftFlange, t);
+      shape.lineTo(-w / 2 - t, t);
+    } else {
+      shape.lineTo(-w / 2, 0);
     }
 
-    // Top edge of main panel
-    shape.lineTo(w / 2 - (rightFlange > 0 ? t : 0), 0);
-
-    // Right flange (if present) - goes backward (negative Z)
+    // Back edge of main panel
+    if (leftFlange > 0) {
+      shape.lineTo(-w / 2, 0);
+    }
+    
+    // Move along back of panel to right side
     if (rightFlange > 0) {
-      shape.lineTo(w / 2 - t, -t);
-      shape.lineTo(w / 2 - t, -rightFlange);
-      shape.lineTo(w / 2, -rightFlange);
       shape.lineTo(w / 2, 0);
+      // Right flange extends outward
+      shape.lineTo(w / 2 + rightFlange, 0);
+      shape.lineTo(w / 2 + rightFlange, t);
+      shape.lineTo(w / 2, t);
     } else {
       shape.lineTo(w / 2, 0);
+      shape.lineTo(w / 2, t);
     }
 
-    // Bottom edge - main panel thickness
-    shape.lineTo(w / 2, t);
+    // Front edge back to start
     shape.lineTo(-w / 2, t);
-    shape.lineTo(-w / 2, 0);
 
     // Extrude settings
     const extrudeSettings = {
