@@ -354,10 +354,7 @@ export const BathroomWalls = ({ config }: BathroomWallsProps) => {
       const flangeW = DEFAULT_FLANGE_WIDTH;
       const innerWidth = w - 2 * t - 2 * flangeW;  // Width between side wall flanges
       
-      // LEFT WALL - runs full depth, flanges flush with floor edge
-      // Due to -90° rotation, flipFlanges must be TRUE for flanges to point outward (-X)
-      // Flange tip at floor edge: panel center at -w/2 + flangeW + t/2
-      // SIDE WALLS - run full depth WITH corner flanges that wrap around
+      // LEFT WALL - runs full depth, NO corner flanges (outer wall)
       const sideWallLength = d;  // Full depth of floor
       const leftPanels = createWallPanels(
         "left",
@@ -366,8 +363,8 @@ export const BathroomWalls = ({ config }: BathroomWallsProps) => {
         -d / 2,
         0,
         -90,
-        true,   // corner flange at back (wraps around corner)
-        true,   // corner flange at front (wraps around corner)
+        false,  // no corner flange at back
+        false,  // no corner flange at front
         DEFAULT_FLANGE_WIDTH,
         DEFAULT_FLANGE_WIDTH,
         true    // flipFlanges=true: after -90° rotation, flanges point -X (outward)
@@ -375,7 +372,7 @@ export const BathroomWalls = ({ config }: BathroomWallsProps) => {
       // Flange tip flush with -w/2, panel center at -w/2 + flangeW + t/2
       allPanels.push(...transformPanelsForOrientation(leftPanels, "z", -w / 2 + flangeW + t / 2));
       
-      // RIGHT WALL - same as left wall, mirrored position
+      // RIGHT WALL - same as left wall, NO corner flanges
       const rightPanels = createWallPanels(
         "right",
         sideWallLength,
@@ -383,8 +380,8 @@ export const BathroomWalls = ({ config }: BathroomWallsProps) => {
         -d / 2,
         0,
         90,
-        true,   // corner flange at back (wraps around corner)
-        true,   // corner flange at front (wraps around corner)
+        false,  // no corner flange at back
+        false,  // no corner flange at front
         DEFAULT_FLANGE_WIDTH,
         DEFAULT_FLANGE_WIDTH,
         true    // flipFlanges=true: after 90° rotation, flanges point +X (outward)
