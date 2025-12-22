@@ -104,11 +104,26 @@ function createWallPanels(
   endFlange: boolean,
   flangeWidth: number = DEFAULT_FLANGE_WIDTH,
   endFlangeWidth: number = flangeWidth,
-  flipFlanges: boolean = false
+  flipFlanges: boolean = false,
+  swapLeftRight: boolean = false  // Swap left/right flanges for mirrored walls
 ): WallPanel[] {
   const panels: WallPanel[] = [];
   
   if (wallLength <= 0) return panels;
+  
+  // Helper to create flange config with optional left/right swap
+  const makeFlange = (
+    type: FlangeConfig["type"],
+    leftW: number,
+    rightW: number
+  ): { type: FlangeConfig["type"]; leftWidth: number; rightWidth: number } => {
+    if (swapLeftRight) {
+      // Swap left and right
+      const swappedType = type === "left" ? "right" : type === "right" ? "left" : type;
+      return { type: swappedType, leftWidth: rightW, rightWidth: leftW };
+    }
+    return { type, leftWidth: leftW, rightWidth: rightW };
+  };
   
   // Calculate optimal panel distribution
   // Strategy: outer panels as wide as possible (up to MAX_PANEL_WIDTH), symmetrical
@@ -143,11 +158,7 @@ function createWallPanels(
       width: wallLength,
       height: wallHeight,
       rotation: rotation,
-      flange: {
-        type: flangeType,
-        leftWidth: leftFlangeW,
-        rightWidth: rightFlangeW,
-      },
+      flange: makeFlange(flangeType, leftFlangeW, rightFlangeW),
       flipFlanges,
     });
   } else if (numPanels === 2) {
@@ -162,11 +173,11 @@ function createWallPanels(
       width: panelWidth,
       height: wallHeight,
       rotation: rotation,
-      flange: {
-        type: startFlange ? "both" : "right",
-        leftWidth: startFlange ? flangeWidth : 0,
-        rightWidth: DEFAULT_FLANGE_WIDTH,
-      },
+      flange: makeFlange(
+        startFlange ? "both" : "right",
+        startFlange ? flangeWidth : 0,
+        DEFAULT_FLANGE_WIDTH
+      ),
       flipFlanges,
     });
     
@@ -178,11 +189,11 @@ function createWallPanels(
       width: panelWidth,
       height: wallHeight,
       rotation: rotation,
-      flange: {
-        type: endFlange ? "both" : "left",
-        leftWidth: DEFAULT_FLANGE_WIDTH,
-        rightWidth: endFlange ? endFlangeWidth : 0,
-      },
+      flange: makeFlange(
+        endFlange ? "both" : "left",
+        DEFAULT_FLANGE_WIDTH,
+        endFlange ? endFlangeWidth : 0
+      ),
       flipFlanges,
     });
   } else {
@@ -203,11 +214,11 @@ function createWallPanels(
       width: outerPanelWidth,
       height: wallHeight,
       rotation: rotation,
-      flange: {
-        type: startFlange ? "both" : "right",
-        leftWidth: startFlange ? flangeWidth : 0,
-        rightWidth: DEFAULT_FLANGE_WIDTH,
-      },
+      flange: makeFlange(
+        startFlange ? "both" : "right",
+        startFlange ? flangeWidth : 0,
+        DEFAULT_FLANGE_WIDTH
+      ),
       flipFlanges,
     });
     currentX += outerPanelWidth;
@@ -221,11 +232,7 @@ function createWallPanels(
         width: middlePanelWidth,
         height: wallHeight,
         rotation: rotation,
-        flange: {
-          type: "both",
-          leftWidth: DEFAULT_FLANGE_WIDTH,
-          rightWidth: DEFAULT_FLANGE_WIDTH,
-        },
+        flange: makeFlange("both", DEFAULT_FLANGE_WIDTH, DEFAULT_FLANGE_WIDTH),
         flipFlanges,
       });
       currentX += middlePanelWidth;
@@ -239,11 +246,11 @@ function createWallPanels(
       width: outerPanelWidth,
       height: wallHeight,
       rotation: rotation,
-      flange: {
-        type: endFlange ? "both" : "left",
-        leftWidth: DEFAULT_FLANGE_WIDTH,
-        rightWidth: endFlange ? endFlangeWidth : 0,
-      },
+      flange: makeFlange(
+        endFlange ? "both" : "left",
+        DEFAULT_FLANGE_WIDTH,
+        endFlange ? endFlangeWidth : 0
+      ),
       flipFlanges,
     });
   }
@@ -376,9 +383,7 @@ export const BathroomWalls = ({ config }: BathroomWallsProps) => {
       // Flange tip flush with -w/2, panel center at -w/2 + flangeW + t/2
       allPanels.push(...transformPanelsForOrientation(leftPanels, "z", -w / 2 + flangeW + t / 2));
       
-      // RIGHT WALL - mirrored from left wall
-      // Due to opposite rotation (+90° vs -90°), flipFlanges must be FALSE
-      // so flanges still point outward (+X direction after rotation)
+      // RIGHT WALL - mirrored from left wall, swap left/right flanges
       const rightPanels = createWallPanels(
         "right",
         sideWallLength,
@@ -386,11 +391,12 @@ export const BathroomWalls = ({ config }: BathroomWallsProps) => {
         -d / 2,
         0,
         90,
-        false,  // startFlange: no corner flange at start/back (-d/2)
-        false,  // endFlange: no corner flange at end/front (+d/2)
+        false,  // startFlange: no corner flange
+        false,  // endFlange: no corner flange
         DEFAULT_FLANGE_WIDTH,
         DEFAULT_FLANGE_WIDTH,
-        false   // flipFlanges=false: after 90° rotation, flanges point +X (outward)
+        true,   // flipFlanges=true: flanges point +X (outward)
+        true    // swapLeftRight=true: swap left/right flanges for mirrored wall
       );
       // Flange tip flush with w/2, panel center at w/2 - flangeW - t/2
       allPanels.push(...transformPanelsForOrientation(rightPanels, "z", w / 2 - flangeW - t / 2));
