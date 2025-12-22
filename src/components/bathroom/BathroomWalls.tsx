@@ -289,6 +289,7 @@ export const BathroomWalls = ({ config }: BathroomWallsProps) => {
       allPanels.push(...backPanels);
       
       // LEFT WALL - interior face flush with left edge of floor
+      // Due to -90° rotation, flipFlanges must be TRUE for flanges to point outward (-X)
       const leftPanels = createWallPanels(
         "left",
         d,  // Full depth
@@ -300,12 +301,13 @@ export const BathroomWalls = ({ config }: BathroomWallsProps) => {
         true,   // front corner flange
         DEFAULT_FLANGE_WIDTH,
         DEFAULT_FLANGE_WIDTH,
-        false
+        true    // flipFlanges=true: after -90° rotation, flanges point -X (outward)
       );
       // Interior at -w/2, center at -w/2 + t/2
       allPanels.push(...transformPanelsForOrientation(leftPanels, "z", -w / 2 + t / 2));
       
       // RIGHT WALL - interior face flush with right edge of floor
+      // Due to 90° rotation, flipFlanges must be TRUE for flanges to point outward (+X)
       const rightPanels = createWallPanels(
         "right",
         d,  // Full depth
@@ -317,7 +319,7 @@ export const BathroomWalls = ({ config }: BathroomWallsProps) => {
         true,   // front corner flange
         DEFAULT_FLANGE_WIDTH,
         DEFAULT_FLANGE_WIDTH,
-        false
+        true    // flipFlanges=true: after 90° rotation, flanges point +X (outward)
       );
       // Interior at w/2, center at w/2 - t/2
       allPanels.push(...transformPanelsForOrientation(rightPanels, "z", w / 2 - t / 2));
