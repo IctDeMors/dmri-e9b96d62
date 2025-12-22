@@ -357,6 +357,7 @@ export const BathroomWalls = ({ config }: BathroomWallsProps) => {
       // LEFT WALL - runs full depth, flanges flush with floor edge
       // Due to -90° rotation, flipFlanges must be TRUE for flanges to point outward (-X)
       // Flange tip at floor edge: panel center at -w/2 + flangeW + t/2
+      // SIDE WALLS - run full depth WITH corner flanges that wrap around
       const sideWallLength = d;  // Full depth of floor
       const leftPanels = createWallPanels(
         "left",
@@ -365,8 +366,8 @@ export const BathroomWalls = ({ config }: BathroomWallsProps) => {
         -d / 2,
         0,
         -90,
-        false,  // no corner flange at back (side wall is outer)
-        false,  // no corner flange at front (side wall is outer)
+        true,   // corner flange at back (wraps around corner)
+        true,   // corner flange at front (wraps around corner)
         DEFAULT_FLANGE_WIDTH,
         DEFAULT_FLANGE_WIDTH,
         true    // flipFlanges=true: after -90° rotation, flanges point -X (outward)
@@ -374,8 +375,7 @@ export const BathroomWalls = ({ config }: BathroomWallsProps) => {
       // Flange tip flush with -w/2, panel center at -w/2 + flangeW + t/2
       allPanels.push(...transformPanelsForOrientation(leftPanels, "z", -w / 2 + flangeW + t / 2));
       
-      // RIGHT WALL - runs full depth, flanges flush with floor edge
-      // Same configuration as left wall, mirrored position
+      // RIGHT WALL - same as left wall, mirrored position
       const rightPanels = createWallPanels(
         "right",
         sideWallLength,
@@ -383,43 +383,45 @@ export const BathroomWalls = ({ config }: BathroomWallsProps) => {
         -d / 2,
         0,
         90,
-        false,  // no corner flange at back (side wall is outer)
-        false,  // no corner flange at front (side wall is outer)
+        true,   // corner flange at back (wraps around corner)
+        true,   // corner flange at front (wraps around corner)
         DEFAULT_FLANGE_WIDTH,
         DEFAULT_FLANGE_WIDTH,
         true    // flipFlanges=true: after 90° rotation, flanges point +X (outward)
       );
-      // Flange tip flush with w/2, panel center at w/2 - flangeW - t/2 (same offset as left wall)
+      // Flange tip flush with w/2, panel center at w/2 - flangeW - t/2
       allPanels.push(...transformPanelsForOrientation(rightPanels, "z", w / 2 - flangeW - t / 2));
       
-      // BACK WALL - fits INSIDE the side walls, with corner flanges
-      // Side wall inner face at: -w/2 + flangeW + t (left) and w/2 - flangeW - t (right)
-      const backWallWidth = w - 2 * (flangeW + t);  // Width between side wall inner faces
+      // BACK WALL - fits INSIDE the side walls
+      // Back wall corner flanges connect to the INNER face of side wall panels
+      // Side wall panel inner face at: -w/2 + flangeW + t (left) and w/2 - flangeW - t (right)
+      // Back wall width = space between side wall inner faces MINUS the corner flanges
+      const backWallWidth = w - 2 * (flangeW + t + flangeW);  // Subtract side wall + back wall corner flanges
       const backPanels = createWallPanels(
         "back",
         backWallWidth,
         h,
-        -w / 2 + flangeW + t,  // Start at left side wall inner face
-        -d / 2 + flangeW + t / 2,  // Flange tip at -d/2
+        -w / 2 + flangeW + t + flangeW,  // Start after left side wall + corner flange
+        -d / 2 + flangeW + t / 2,  // Panel center so flange tip at -d/2
         0,
-        true,   // left corner flange
-        true,   // right corner flange
+        true,   // left corner flange (connects to side wall inner face)
+        true,   // right corner flange (connects to side wall inner face)
         DEFAULT_FLANGE_WIDTH,
         DEFAULT_FLANGE_WIDTH,
-        false   // flanges point outward
+        false   // flanges point outward (-Z direction)
       );
       allPanels.push(...backPanels);
       
-      // FRONT WALL - fits INSIDE the side walls, with corner flanges
+      // FRONT WALL - fits INSIDE the side walls, same principle as back wall
       const frontPanels = createFrontWallWithDoor(
         backWallWidth,  // Same width as back wall
         h,
-        -w / 2 + flangeW + t,  // Start at left side wall inner face
-        d / 2 - flangeW - t / 2,  // Flange tip at d/2
+        -w / 2 + flangeW + t + flangeW,  // Start after left side wall + corner flange
+        d / 2 - flangeW - t / 2,  // Panel center so flange tip at d/2
         180,
         doorConfig,
-        true,   // left corner flange
-        true    // right corner flange
+        true,   // left corner flange (connects to side wall inner face)
+        true    // right corner flange (connects to side wall inner face)
       );
       allPanels.push(...frontPanels);
       
