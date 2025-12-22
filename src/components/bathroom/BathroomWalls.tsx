@@ -14,9 +14,131 @@ const DEFAULT_FLANGE_WIDTH = 100; // Default flange width in mm
 const DOOR_FLANGE_WIDTH = 55; // Flange width at door frame (55 or 85mm per spec)
 
 /**
+ * Creates a single wall panel with specified configuration.
+ */
+function createPanel(
+  id: string,
+  centerX: number,
+  posZ: number,
+  width: number,
+  height: number,
+  rotation: number,
+  flangeType: FlangeConfig["type"],
+  leftFlangeWidth: number = DEFAULT_FLANGE_WIDTH,
+  rightFlangeWidth: number = DEFAULT_FLANGE_WIDTH
+): WallPanel {
+  return {
+    id,
+    x: centerX,
+    z: posZ,
+    width,
+    height,
+    rotation,
+    flange: {
+      type: flangeType,
+      leftWidth: flangeType === "left" || flangeType === "both" ? leftFlangeWidth : 0,
+      rightWidth: flangeType === "right" || flangeType === "both" ? rightFlangeWidth : 0,
+    },
+  };
+}
+
+/**
+ * Creates back wall panels with specific layout:
+ * - Left panel: 900mm with left corner flange
+ * - Middle panel: remaining width (passtrook)
+ * - Right panel: 900mm with right corner flange
+ */
+function createBackWallPanels(
+  wallId: string,
+  wallLength: number,
+  wallHeight: number,
+  startX: number,
+  posZ: number,
+  rotation: number
+): WallPanel[] {
+  const panels: WallPanel[] = [];
+  
+  // Fixed widths for left and right panels
+  const sideWidth = MAX_PANEL_WIDTH; // 900mm
+  const middleWidth = wallLength - (2 * sideWidth);
+  
+  if (wallLength <= 2 * sideWidth) {
+    // Wall too short for 3 panels, use 2 panels
+    if (wallLength <= sideWidth) {
+      // Single panel
+      panels.push(createPanel(
+        `${wallId}-0`,
+        startX + wallLength / 2,
+        posZ,
+        wallLength,
+        wallHeight,
+        rotation,
+        "both"
+      ));
+    } else {
+      // Two panels
+      const halfWidth = wallLength / 2;
+      panels.push(createPanel(
+        `${wallId}-left`,
+        startX + halfWidth / 2,
+        posZ,
+        halfWidth,
+        wallHeight,
+        rotation,
+        "left"
+      ));
+      panels.push(createPanel(
+        `${wallId}-right`,
+        startX + halfWidth + halfWidth / 2,
+        posZ,
+        halfWidth,
+        wallHeight,
+        rotation,
+        "right"
+      ));
+    }
+  } else {
+    // Three panels: left 900mm, middle passtrook, right 900mm
+    // Left panel with corner flange
+    panels.push(createPanel(
+      `${wallId}-left`,
+      startX + sideWidth / 2,
+      posZ,
+      sideWidth,
+      wallHeight,
+      rotation,
+      "left"
+    ));
+    
+    // Middle panel (passtrook) - no flanges, butts against adjacent panels
+    panels.push(createPanel(
+      `${wallId}-middle`,
+      startX + sideWidth + middleWidth / 2,
+      posZ,
+      middleWidth,
+      wallHeight,
+      rotation,
+      "none"
+    ));
+    
+    // Right panel with corner flange
+    panels.push(createPanel(
+      `${wallId}-right`,
+      startX + sideWidth + middleWidth + sideWidth / 2,
+      posZ,
+      sideWidth,
+      wallHeight,
+      rotation,
+      "right"
+    ));
+  }
+  
+  return panels;
+}
+
+/**
  * Divides a wall segment into panels.
  * Uses max 900mm panels and fills remainder with a passtrook (filler strip).
- * Flanges are at panel edges, folding outward.
  */
 function createWallPanels(
   wallId: string,
@@ -177,17 +299,14 @@ export const BathroomWalls = ({ config }: BathroomWallsProps) => {
     const allPanels: WallPanel[] = [];
     
     if (floorShape === "rectangle") {
-      // BACK WALL - at back of bathroom
-      const backPanels = createWallPanels(
+      // BACK WALL - 3 panels: left 900mm, middle passtrook, right 900mm
+      const backPanels = createBackWallPanels(
         "back",
         w,
         h,
         -w / 2,
         -d / 2,
-        0,
-        true,
-        true,
-        DEFAULT_FLANGE_WIDTH
+        0
       );
       allPanels.push(...backPanels);
       
