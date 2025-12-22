@@ -13,15 +13,26 @@ const SCALE = 1 / 1000;
 const PANEL_THICKNESS = 19; // 19mm panel thickness
 
 /**
- * Creates a 3D shape for a wall panel with flanges pointing OUTWARD
- * View from inside bathroom looking at wall:
- * - Flanges bend away from viewer (toward outside of bathroom)
+ * Creates a 3D shape for a wall panel with flanges.
  * 
- * Flange types (viewed from inside):
- * - __|  (right flange - bends outward on right side)
- * - |__| (both flanges - bends outward on both sides)
- * - |__  (left flange - bends outward on left side)
- * - __   (no flanges, flat panel)
+ * The panel is a flat plate that gets bent/folded at the edges to create flanges.
+ * Viewed from above (looking down at bathroom):
+ * 
+ *    OUTSIDE (away from bathroom)
+ *         ↑
+ *    ┌────┴────┐
+ *    │         │  ← left flange (folded outward)
+ *    │    ┌────┘
+ *    │    │
+ *    │    │  ← main panel (interior face)
+ *    │    │
+ *    │    └────┐
+ *    │         │  ← right flange (folded outward)
+ *    └────┬────┘
+ *         ↓
+ *    INSIDE (bathroom interior)
+ * 
+ * The flanges fold outward, perpendicular to the main panel face.
  */
 export const WallPanel3D = ({ panel, selected, onClick }: WallPanel3DProps) => {
   const geometry = useMemo(() => {
@@ -35,47 +46,50 @@ export const WallPanel3D = ({ panel, selected, onClick }: WallPanel3DProps) => {
       ? panel.flange.rightWidth * SCALE 
       : 0;
 
-    // Create the shape from the top view (X-Z plane, extruded along Y)
-    // Panel faces +Z direction (toward inside of bathroom)
-    // Flanges go toward -Z direction (toward outside of bathroom)
+    // Create the shape from the top view (X-Z plane)
+    // X = along the wall width, Z = depth (into/out of bathroom)
+    // Panel faces toward +Z (interior), flanges extend toward -Z (exterior)
     const shape = new THREE.Shape();
 
-    // Start at front-left of main panel (inside face)
-    shape.moveTo(-w / 2, t);
-
-    // Left flange (if present) - goes backward (toward outside, positive Z in local coords means toward back)
+    // Start at interior face, left edge
+    // Interior face is at Z = 0, exterior at Z = -t
+    
     if (leftFlange > 0) {
-      // Go to back of main panel
-      shape.lineTo(-w / 2, 0);
-      // Extend flange outward (away from bathroom interior)
+      // Start at end of left flange (exterior)
+      shape.moveTo(-w / 2 - leftFlange, -t);
+      // Go along exterior of left flange
       shape.lineTo(-w / 2 - leftFlange, 0);
-      shape.lineTo(-w / 2 - leftFlange, t);
-      shape.lineTo(-w / 2 - t, t);
-    } else {
+      // Interior edge of left flange, turn toward main panel
       shape.lineTo(-w / 2, 0);
-    }
-
-    // Back edge of main panel
-    if (leftFlange > 0) {
+    } else {
+      // Start at left edge of main panel, exterior
+      shape.moveTo(-w / 2, -t);
       shape.lineTo(-w / 2, 0);
     }
     
-    // Move along back of panel to right side
+    // Along interior face of main panel to right side
     if (rightFlange > 0) {
       shape.lineTo(w / 2, 0);
-      // Right flange extends outward
+      // Interior edge of right flange
       shape.lineTo(w / 2 + rightFlange, 0);
-      shape.lineTo(w / 2 + rightFlange, t);
-      shape.lineTo(w / 2, t);
+      // Exterior edge of right flange
+      shape.lineTo(w / 2 + rightFlange, -t);
+      // Back along exterior of right flange
+      shape.lineTo(w / 2, -t);
     } else {
       shape.lineTo(w / 2, 0);
-      shape.lineTo(w / 2, t);
+      shape.lineTo(w / 2, -t);
+    }
+    
+    // Back along exterior of main panel
+    if (leftFlange > 0) {
+      shape.lineTo(-w / 2, -t);
+      shape.lineTo(-w / 2 - leftFlange, -t);
+    } else {
+      shape.lineTo(-w / 2, -t);
     }
 
-    // Front edge back to start
-    shape.lineTo(-w / 2, t);
-
-    // Extrude settings
+    // Extrude upward (Y direction)
     const extrudeSettings = {
       steps: 1,
       depth: h,
@@ -83,7 +97,7 @@ export const WallPanel3D = ({ panel, selected, onClick }: WallPanel3DProps) => {
     };
 
     const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-    // Rotate so it stands upright (Y is up)
+    // Rotate so it stands upright: extrusion was along Z, rotate to be along Y
     geo.rotateX(-Math.PI / 2);
     
     return geo;
@@ -103,9 +117,10 @@ export const WallPanel3D = ({ panel, selected, onClick }: WallPanel3DProps) => {
       onClick={onClick}
     >
       <meshStandardMaterial 
-        color={selected ? "#4A90D9" : "#F0F0F0"} 
-        roughness={0.6}
-        metalness={0.1}
+        color={selected ? "#4A90D9" : "#B8B8B0"} 
+        roughness={0.5}
+        metalness={0.2}
+        side={THREE.DoubleSide}
       />
     </mesh>
   );

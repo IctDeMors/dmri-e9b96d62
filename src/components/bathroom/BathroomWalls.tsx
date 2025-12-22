@@ -6,102 +6,123 @@ interface BathroomWallsProps {
   config: BathroomConfig;
 }
 
-// Constants
+// Constants based on specifications
 const PANEL_THICKNESS = 19; // 19mm panel thickness
-const MAX_PANEL_WIDTH = 900; // Maximum panel width in mm
-const MIN_PANEL_WIDTH = 170; // Minimum panel width in mm
+const MAX_PANEL_WIDTH = 900; // Maximum panel width in mm (gebogen)
+const MIN_PANEL_WIDTH = 170; // Minimum panel width in mm (ongebogen)
 const DEFAULT_FLANGE_WIDTH = 100; // Default flange width in mm
+const MAX_FLANGE_WIDTH = 150; // Maximum flange width in mm
 
 /**
- * Divides a wall length into panels of max 900mm with a filler strip
- * Strategy: Use as many 900mm panels as possible, fill remainder with passtrook
+ * Divides a wall segment into panels.
+ * Uses max 900mm panels and fills remainder with a passtrook (filler strip).
+ * Flanges are at panel edges, folding outward.
  */
-function divideWallIntoPanels(
-  totalLength: number,
+function createWallPanels(
   wallId: string,
+  wallLength: number,
+  wallHeight: number,
+  // Start position of wall segment
   startX: number,
-  z: number,
-  height: number,
+  posZ: number,
   rotation: number,
-  hasLeftFlange: boolean,
-  hasRightFlange: boolean
+  // Which ends need flanges for corner connections
+  startFlange: boolean,
+  endFlange: boolean,
+  flangeWidth: number = DEFAULT_FLANGE_WIDTH
 ): WallPanel[] {
   const panels: WallPanel[] = [];
   
-  // Calculate usable length (accounting for flanges at ends)
-  const leftFlangeOffset = hasLeftFlange ? PANEL_THICKNESS : 0;
-  const rightFlangeOffset = hasRightFlange ? PANEL_THICKNESS : 0;
-  const usableLength = totalLength - leftFlangeOffset - rightFlangeOffset;
+  if (wallLength <= 0) return panels;
   
-  if (usableLength <= 0) return panels;
+  // Calculate how many full panels and remainder
+  const numFullPanels = Math.floor(wallLength / MAX_PANEL_WIDTH);
+  const remainder = wallLength % MAX_PANEL_WIDTH;
   
-  // Calculate number of full 900mm panels
-  const numFullPanels = Math.floor(usableLength / MAX_PANEL_WIDTH);
-  const remainder = usableLength - (numFullPanels * MAX_PANEL_WIDTH);
+  // Determine panel distribution
+  let panelWidths: number[] = [];
   
-  let currentX = startX + leftFlangeOffset;
+  if (numFullPanels === 0) {
+    // Wall is shorter than max panel width
+    panelWidths = [wallLength];
+  } else if (remainder === 0) {
+    // Perfect fit with full panels
+    panelWidths = Array(numFullPanels).fill(MAX_PANEL_WIDTH);
+  } else if (remainder >= MIN_PANEL_WIDTH) {
+    // Full panels + filler strip
+    panelWidths = [...Array(numFullPanels).fill(MAX_PANEL_WIDTH), remainder];
+  } else {
+    // Remainder too small, distribute across panels
+    // Take some width from last full panel to make filler viable
+    const adjustedWidth = (wallLength) / (numFullPanels);
+    panelWidths = Array(numFullPanels).fill(adjustedWidth);
+  }
   
-  // Create full panels
-  for (let i = 0; i < numFullPanels; i++) {
-    const isFirst = i === 0;
-    const isLast = i === numFullPanels - 1 && remainder < MIN_PANEL_WIDTH;
+  // Create panels
+  let currentX = startX;
+  
+  panelWidths.forEach((width, index) => {
+    const isFirst = index === 0;
+    const isLast = index === panelWidths.length - 1;
+    
+    // Determine flange configuration
+    // Each panel can have flanges on left, right, both, or none
+    const hasLeftFlange = isFirst && startFlange;
+    const hasRightFlange = isLast && endFlange;
+    
+    const flangeType: FlangeConfig["type"] = 
+      hasLeftFlange && hasRightFlange ? "both" :
+      hasLeftFlange ? "left" :
+      hasRightFlange ? "right" : "none";
     
     const flange: FlangeConfig = {
-      type: isFirst && hasLeftFlange 
-        ? (isLast && hasRightFlange ? "both" : "left")
-        : (isLast && hasRightFlange ? "right" : "none"),
-      leftWidth: isFirst && hasLeftFlange ? DEFAULT_FLANGE_WIDTH : 0,
-      rightWidth: isLast && hasRightFlange ? DEFAULT_FLANGE_WIDTH : 0,
+      type: flangeType,
+      leftWidth: hasLeftFlange ? flangeWidth : 0,
+      rightWidth: hasRightFlange ? flangeWidth : 0,
     };
     
+    // Panel position is at center of panel width
+    const panelCenterX = currentX + width / 2;
+    
     panels.push({
-      id: `${wallId}-panel-${i}`,
-      x: currentX + MAX_PANEL_WIDTH / 2,
-      z,
-      width: MAX_PANEL_WIDTH,
-      height,
-      rotation,
+      id: `${wallId}-${index}`,
+      x: panelCenterX,
+      z: posZ,
+      width: width,
+      height: wallHeight,
+      rotation: rotation,
       flange,
     });
     
-    currentX += MAX_PANEL_WIDTH;
-  }
-  
-  // Create filler panel (passtrook) if needed
-  if (remainder >= MIN_PANEL_WIDTH) {
-    const isFirst = numFullPanels === 0;
-    const flange: FlangeConfig = {
-      type: isFirst && hasLeftFlange 
-        ? (hasRightFlange ? "both" : "left")
-        : (hasRightFlange ? "right" : "none"),
-      leftWidth: isFirst && hasLeftFlange ? DEFAULT_FLANGE_WIDTH : 0,
-      rightWidth: hasRightFlange ? DEFAULT_FLANGE_WIDTH : 0,
-    };
-    
-    panels.push({
-      id: `${wallId}-filler`,
-      x: currentX + remainder / 2,
-      z,
-      width: remainder,
-      height,
-      rotation,
-      flange,
-    });
-  } else if (remainder > 0 && numFullPanels > 0) {
-    // Add remainder to the last panel
-    const lastPanel = panels[panels.length - 1];
-    lastPanel.width += remainder;
-    lastPanel.x += remainder / 2;
-  }
+    currentX += width;
+  });
   
   return panels;
 }
 
 /**
- * Generates wall panels for the bathroom based on configuration.
- * Panels have 19mm thickness with configurable flanges pointing OUTWARD.
- * Walls are divided into max 900mm panels with filler strips.
+ * Transforms panel positions based on wall orientation.
+ * Panels are created assuming wall runs along X axis.
+ * This function repositions them for walls running along Z axis.
  */
+function transformPanelsForOrientation(
+  panels: WallPanel[],
+  wallOrientation: "x" | "z",
+  wallPosition: number
+): WallPanel[] {
+  if (wallOrientation === "x") {
+    // Wall runs along X axis, panels are correct, just set Z position
+    return panels.map(p => ({ ...p, z: wallPosition }));
+  } else {
+    // Wall runs along Z axis, swap X and Z coordinates
+    return panels.map(p => ({
+      ...p,
+      x: wallPosition,
+      z: p.x, // Original X becomes Z position
+    }));
+  }
+}
+
 export const BathroomWalls = ({ config }: BathroomWallsProps) => {
   const { dimensions, floorShape, lShapeConfig } = config;
   
@@ -109,145 +130,135 @@ export const BathroomWalls = ({ config }: BathroomWallsProps) => {
     const w = dimensions.width;
     const d = dimensions.depth;
     const h = dimensions.height;
-    const panels: WallPanel[] = [];
+    const allPanels: WallPanel[] = [];
     
     if (floorShape === "rectangle") {
-      // Back wall - facing +Z (into bathroom)
-      // Position at back of bathroom, panels face forward
-      const backPanels = divideWallIntoPanels(
-        w,
+      // BACK WALL - runs along X axis at back of bathroom
+      // Faces toward +Z (into bathroom), flanges go toward -Z (outside)
+      const backPanels = createWallPanels(
         "back",
-        -w / 2,
-        -d / 2,
+        w,
         h,
-        0,
-        true,  // left flange (connects to left wall)
-        true   // right flange (connects to right wall)
+        -w / 2,  // start at left edge
+        -d / 2,  // at back of bathroom
+        0,       // no rotation, faces +Z
+        true,    // left corner flange
+        true,    // right corner flange
+        DEFAULT_FLANGE_WIDTH
       );
-      panels.push(...backPanels);
+      allPanels.push(...backPanels);
       
-      // Left wall - rotated 90°, facing +X (into bathroom)
-      const leftPanels = divideWallIntoPanels(
-        d,
+      // LEFT WALL - runs along Z axis on left side
+      // Faces toward +X (into bathroom), flanges go toward -X (outside)
+      const leftPanels = createWallPanels(
         "left",
-        -d / 2,
-        0,
-        h,
-        90,
-        true,  // left flange (at back)
-        false  // no right flange (front is open)
-      );
-      // Adjust positions for left wall (swap x/z due to rotation)
-      leftPanels.forEach(p => {
-        const originalX = p.x;
-        p.x = -w / 2;
-        p.z = originalX;
-      });
-      panels.push(...leftPanels);
-      
-      // Right wall - rotated -90°, facing -X (into bathroom)
-      const rightPanels = divideWallIntoPanels(
         d,
-        "right",
-        -d / 2,
-        0,
         h,
-        -90,
-        true,  // left flange (at back)
-        false  // no right flange (front is open)
+        -d / 2,  // start at back
+        0,       // temporary Z, will be transformed
+        -90,     // rotated to face +X
+        true,    // back corner flange
+        false,   // front is open (no door/entrance flange for now)
+        DEFAULT_FLANGE_WIDTH
       );
-      // Adjust positions for right wall
-      rightPanels.forEach(p => {
-        const originalX = p.x;
-        p.x = w / 2;
-        p.z = originalX;
-      });
-      panels.push(...rightPanels);
+      const transformedLeftPanels = transformPanelsForOrientation(leftPanels, "z", -w / 2);
+      allPanels.push(...transformedLeftPanels);
+      
+      // RIGHT WALL - runs along Z axis on right side
+      // Faces toward -X (into bathroom), flanges go toward +X (outside)
+      const rightPanels = createWallPanels(
+        "right",
+        d,
+        h,
+        -d / 2,  // start at back
+        0,       // temporary Z, will be transformed
+        90,      // rotated to face -X
+        true,    // back corner flange
+        false,   // front is open
+        DEFAULT_FLANGE_WIDTH
+      );
+      const transformedRightPanels = transformPanelsForOrientation(rightPanels, "z", w / 2);
+      allPanels.push(...transformedRightPanels);
       
     } else if (floorShape === "l-shape" && lShapeConfig) {
+      // L-shape configuration
       const cutW = lShapeConfig.cutoutWidth;
       const cutD = lShapeConfig.cutoutDepth;
       
-      // L-shape with top-right cutout
       if (lShapeConfig.cutoutCorner === "top-right") {
-        // Back wall left section
-        const backLeftPanels = divideWallIntoPanels(
-          w - cutW,
+        // Back wall - left section (from left edge to cutout)
+        const backLeftPanels = createWallPanels(
           "back-left",
+          w - cutW,
+          h,
           -w / 2,
           -d / 2,
-          h,
           0,
           true,
-          true
+          true,
+          DEFAULT_FLANGE_WIDTH
         );
-        panels.push(...backLeftPanels);
+        allPanels.push(...backLeftPanels);
         
-        // Inner back wall (after cutout)
-        const backInnerPanels = divideWallIntoPanels(
-          cutW,
+        // Inner back wall - section after cutout
+        const backInnerPanels = createWallPanels(
           "back-inner",
+          cutW,
+          h,
           w / 2 - cutW,
           -d / 2 + cutD,
-          h,
           0,
           true,
-          true
+          true,
+          DEFAULT_FLANGE_WIDTH
         );
-        panels.push(...backInnerPanels);
+        allPanels.push(...backInnerPanels);
         
         // Left wall - full depth
-        const leftPanels = divideWallIntoPanels(
-          d,
+        const leftPanels = createWallPanels(
           "left",
+          d,
+          h,
           -d / 2,
           0,
-          h,
-          90,
-          true,
-          false
-        );
-        leftPanels.forEach(p => {
-          const originalX = p.x;
-          p.x = -w / 2;
-          p.z = originalX;
-        });
-        panels.push(...leftPanels);
-        
-        // Right wall - partial (from front to cutout)
-        const rightPanels = divideWallIntoPanels(
-          d - cutD,
-          "right",
-          cutD - d / 2,
-          0,
-          h,
           -90,
           true,
-          false
+          false,
+          DEFAULT_FLANGE_WIDTH
         );
-        rightPanels.forEach(p => {
-          const originalX = p.x;
-          p.x = w / 2;
-          p.z = originalX + cutD / 2;
-        });
-        panels.push(...rightPanels);
+        allPanels.push(...transformPanelsForOrientation(leftPanels, "z", -w / 2));
         
-        // Inner horizontal wall at cutout
-        const innerHPanels = divideWallIntoPanels(
-          cutW,
-          "inner-h",
-          w / 2 - cutW,
-          -d / 2 + cutD,
+        // Right wall - partial (from cutout to front)
+        const rightPanels = createWallPanels(
+          "right",
+          d - cutD,
           h,
-          180,
+          -d / 2 + cutD,
+          0,
+          90,
           true,
-          true
+          false,
+          DEFAULT_FLANGE_WIDTH
         );
-        panels.push(...innerHPanels);
+        allPanels.push(...transformPanelsForOrientation(rightPanels, "z", w / 2));
+        
+        // Inner vertical wall at cutout (runs along Z)
+        const innerVertPanels = createWallPanels(
+          "inner-vert",
+          cutD,
+          h,
+          -d / 2,
+          0,
+          90,
+          true,
+          true,
+          DEFAULT_FLANGE_WIDTH
+        );
+        allPanels.push(...transformPanelsForOrientation(innerVertPanels, "z", w / 2 - cutW));
       }
     }
     
-    return panels;
+    return allPanels;
   }, [dimensions, floorShape, lShapeConfig]);
 
   return <WallPanels panels={wallPanels} />;
