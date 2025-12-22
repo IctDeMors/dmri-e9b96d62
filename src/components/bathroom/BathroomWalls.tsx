@@ -322,19 +322,25 @@ export const BathroomWalls = ({ config }: BathroomWallsProps) => {
     const h = dimensions.height;
     const allPanels: WallPanel[] = [];
     
+    // Offset for panel thickness to avoid overlapping at corners
+    const t = PANEL_THICKNESS;
+    
     if (floorShape === "rectangle") {
       // BACK WALL - 3 panels: left 900mm, middle passtrook, right 900mm
+      // Back wall sits between the side walls, so width is reduced by panel thickness on each side
+      const backWallWidth = w - 2 * t;
       const backPanels = createBackWallPanels(
         "back",
-        w,
+        backWallWidth,
         h,
-        -w / 2,
-        -d / 2,
+        -w / 2 + t,  // Start inside left wall
+        -d / 2 + t / 2,  // Position at back, offset for thickness
         0
       );
       allPanels.push(...backPanels);
       
       // LEFT WALL - full depth from back to front
+      // Side walls have no flanges toward corners (corners handled by front/back wall flanges)
       const leftPanels = createWallPanels(
         "left",
         d,
@@ -342,11 +348,13 @@ export const BathroomWalls = ({ config }: BathroomWallsProps) => {
         -d / 2,
         0,
         -90,
-        true,   // back corner flange
-        true,   // front corner flange
-        DEFAULT_FLANGE_WIDTH
+        false,   // no back corner flange (back wall has the flange)
+        false,   // no front corner flange (front wall has the flange)
+        DEFAULT_FLANGE_WIDTH,
+        DEFAULT_FLANGE_WIDTH,
+        false
       );
-      allPanels.push(...transformPanelsForOrientation(leftPanels, "z", -w / 2));
+      allPanels.push(...transformPanelsForOrientation(leftPanels, "z", -w / 2 + t / 2));
       
       // RIGHT WALL - full depth from back to front
       const rightPanels = createWallPanels(
@@ -356,20 +364,24 @@ export const BathroomWalls = ({ config }: BathroomWallsProps) => {
         -d / 2,
         0,
         90,
-        true,   // back corner flange
-        true,   // front corner flange
-        DEFAULT_FLANGE_WIDTH
+        false,   // no back corner flange
+        false,   // no front corner flange
+        DEFAULT_FLANGE_WIDTH,
+        DEFAULT_FLANGE_WIDTH,
+        false
       );
-      allPanels.push(...transformPanelsForOrientation(rightPanels, "z", w / 2));
+      allPanels.push(...transformPanelsForOrientation(rightPanels, "z", w / 2 - t / 2));
       
       // FRONT WALL - with door opening
+      // Front wall sits between the side walls
+      const frontWallWidth = w - 2 * t;
       const frontPanels = createFrontWallWithDoor(
-        w,
+        frontWallWidth,
         h,
-        -w / 2,
-        d / 2,
+        -w / 2 + t,  // Start inside left wall
+        d / 2 - t / 2,  // Position at front, offset for thickness
         180,    // faces inward (-Z direction)
-        doorConfig,
+        { ...doorConfig, position: doorConfig.position - t },  // Adjust door position
         true,   // left corner flange
         true    // right corner flange
       );

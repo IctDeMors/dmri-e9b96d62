@@ -15,16 +15,8 @@ const PANEL_THICKNESS = 19; // 19mm panel thickness
 /**
  * Creates a 3D wall panel with optional flanges on left and/or right side.
  * 
- * Top-down view (looking at floor):
- * 
- *       LEFT FLANGE          MAIN PANEL           RIGHT FLANGE
- *           ║                                          ║
- *           ║←── leftFlange ──→║←── width ──→║←── rightFlange ──→║
- *           ║                  ║             ║                   ║
- *    ═══════╝                  ╚═════════════╝                   ╚═══════
- *    
- * Interior face (Z=0) faces toward bathroom interior
- * Flanges extend perpendicular, toward the outside (negative Z)
+ * The panel is extruded upward (Y axis) with flanges extending outward.
+ * flipFlanges controls which direction (interior or exterior) the flanges point.
  */
 export const WallPanel3D = ({ panel, selected, onClick }: WallPanel3DProps) => {
   const geometry = useMemo(() => {
@@ -38,73 +30,78 @@ export const WallPanel3D = ({ panel, selected, onClick }: WallPanel3DProps) => {
       ? panel.flange.rightWidth * SCALE 
       : 0;
 
-    // Create shape in X-Z plane (top-down view)
-    // X = along wall width, Z = depth
-    // Flanges direction depends on flipFlanges flag
     const flipFlanges = panel.flipFlanges ?? false;
     const shape = new THREE.Shape();
     
     const halfW = w / 2;
     
+    // We draw the profile in X-Z plane looking from top
+    // X = width direction, Z = depth (perpendicular to wall face)
+    // Interior is at Z=0, exterior is at Z=-t (panel thickness going outward)
+    
     if (flipFlanges) {
-      // Flanges extend in +Z direction (for front/back walls where we need outward flanges)
-      // Start at bottom-left of main panel (interior side)
-      shape.moveTo(-halfW, 0);
+      // For front/back walls: flanges extend toward +Z (interior)
+      // This makes them wrap around the side wall panels from inside
       
-      // Left flange (if present) - extends in +Z direction
+      // Start at exterior face, left edge
+      shape.moveTo(-halfW, -t);
+      
+      // Left flange going toward interior (+Z)
       if (leftF > 0) {
-        shape.lineTo(-halfW, leftF);       // Extend left flange outward (+Z)
-        shape.lineTo(-halfW - t, leftF);   // Flange thickness
-        shape.lineTo(-halfW - t, -t);      // Back to main panel level
-        shape.lineTo(-halfW, -t);          // Exterior corner
+        shape.lineTo(-halfW - t, -t);      // Flange starts at exterior
+        shape.lineTo(-halfW - t, leftF);   // Flange extends into interior
+        shape.lineTo(-halfW, leftF);       // Inner edge of flange
+        shape.lineTo(-halfW, 0);           // Back to panel interior face
       } else {
-        shape.lineTo(-halfW, -t);          // Just go to exterior face
+        shape.lineTo(-halfW, 0);
       }
       
-      // Along exterior face to right side
+      // Interior face
+      shape.lineTo(halfW, 0);
+      
+      // Right flange going toward interior (+Z)
+      if (rightF > 0) {
+        shape.lineTo(halfW, rightF);       // Start of flange at interior
+        shape.lineTo(halfW + t, rightF);   // Outer edge of flange
+        shape.lineTo(halfW + t, -t);       // Flange at exterior level
+        shape.lineTo(halfW, -t);           // Back to panel exterior
+      } else {
+        shape.lineTo(halfW, -t);
+      }
+      
+      // Close along exterior
+      shape.lineTo(-halfW, -t);
+    } else {
+      // For side walls: flanges extend toward -Z (exterior)
+      // This makes them wrap around the front/back wall panels from outside
+      
+      // Start at interior face, left edge
+      shape.moveTo(-halfW, 0);
+      
+      // Left flange going toward exterior (-Z)
+      if (leftF > 0) {
+        shape.lineTo(-halfW, -leftF - t);  // Flange extends outward
+        shape.lineTo(-halfW + t, -leftF - t); // Outer edge of flange
+        shape.lineTo(-halfW + t, -t);      // Back toward panel
+        shape.lineTo(-halfW, -t);          // Panel exterior face
+      } else {
+        shape.lineTo(-halfW, -t);
+      }
+      
+      // Exterior face
       shape.lineTo(halfW, -t);
       
-      // Right flange (if present) - extends in +Z direction
+      // Right flange going toward exterior (-Z)
       if (rightF > 0) {
-        shape.lineTo(halfW + t, -t);       // Start of right flange
-        shape.lineTo(halfW + t, rightF);   // Flange extends outward (+Z)
-        shape.lineTo(halfW, rightF);       // Flange thickness
-        shape.lineTo(halfW, 0);            // Back to interior
+        shape.lineTo(halfW, -rightF - t);  // Flange extends outward
+        shape.lineTo(halfW - t, -rightF - t); // Outer edge of flange
+        shape.lineTo(halfW - t, 0);        // Back to interior level
+        shape.lineTo(halfW, 0);            // Panel interior face
       } else {
-        shape.lineTo(halfW, 0);            // Just interior corner
+        shape.lineTo(halfW, 0);
       }
       
-      // Close the shape along interior
-      shape.lineTo(-halfW, 0);
-    } else {
-      // Default: Flanges extend in -Z direction (for side walls)
-      // Start at bottom-left of main panel (exterior side)
-      shape.moveTo(-halfW, 0);
-      
-      // Left flange (if present)
-      if (leftF > 0) {
-        shape.lineTo(-halfW, -leftF);      // Extend left flange outward
-        shape.lineTo(-halfW - t, -leftF);  // Flange thickness
-        shape.lineTo(-halfW - t, t);       // Back to main panel level
-        shape.lineTo(-halfW, t);           // Interior corner
-      } else {
-        shape.lineTo(-halfW, t);           // Just go to interior face
-      }
-      
-      // Along interior face to right side
-      shape.lineTo(halfW, t);
-      
-      // Right flange (if present)
-      if (rightF > 0) {
-        shape.lineTo(halfW + t, t);        // Start of right flange
-        shape.lineTo(halfW + t, -rightF);  // Flange extends outward
-        shape.lineTo(halfW, -rightF);      // Flange thickness
-        shape.lineTo(halfW, 0);            // Back to exterior
-      } else {
-        shape.lineTo(halfW, 0);            // Just exterior corner
-      }
-      
-      // Close the shape along exterior
+      // Close along interior
       shape.lineTo(-halfW, 0);
     }
 
@@ -116,11 +113,11 @@ export const WallPanel3D = ({ panel, selected, onClick }: WallPanel3DProps) => {
     };
 
     const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-    // Rotate to stand upright (extrusion was +Z, needs to be +Y)
+    // Rotate to stand upright (extrusion was along Z, needs to be +Y)
     geo.rotateX(-Math.PI / 2);
     
     return geo;
-  }, [panel.width, panel.height, panel.flange]);
+  }, [panel.width, panel.height, panel.flange, panel.flipFlanges]);
 
   const x = panel.x * SCALE;
   const z = panel.z * SCALE;
