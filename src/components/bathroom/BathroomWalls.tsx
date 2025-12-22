@@ -392,29 +392,36 @@ export const BathroomWalls = ({ config }: BathroomWallsProps) => {
       // Flange tip flush with w/2, panel center at w/2 - flangeW - t/2
       allPanels.push(...transformPanelsForOrientation(rightPanels, "z", w / 2 - flangeW - t / 2));
       
-      // BACK WALL - fits INSIDE the side walls, flanges flush with back edge
-      // Flange tip at floor edge: panel center at -d/2 + flangeW + t/2
-      const backPanels = createBackWallPanels(
+      // BACK WALL - fits INSIDE the side walls
+      // Panel outer edge connects to side wall inner face (no corner flanges)
+      // Side wall inner face at: -w/2 + flangeW + t (left) and w/2 - flangeW - t (right)
+      const backWallWidth = w - 2 * (flangeW + t);  // Width between side wall inner faces
+      const backPanels = createWallPanels(
         "back",
-        innerWidth,  // Width between side wall flanges
+        backWallWidth,
         h,
-        -w / 2 + t + flangeW,  // Start after left side wall + flange
+        -w / 2 + flangeW + t,  // Start at left side wall inner face
         -d / 2 + flangeW + t / 2,  // Flange tip at -d/2
-        0
+        0,
+        false,  // no left corner flange (butts against side wall)
+        false,  // no right corner flange (butts against side wall)
+        DEFAULT_FLANGE_WIDTH,
+        DEFAULT_FLANGE_WIDTH,
+        false   // flanges point outward
       );
       allPanels.push(...backPanels);
       
-      // FRONT WALL - fits INSIDE the side walls, flanges flush with front edge
-      // Flange tip at floor edge: panel center at d/2 - flangeW - t/2
+      // FRONT WALL - fits INSIDE the side walls
+      // Panel outer edge connects to side wall inner face (no corner flanges)
       const frontPanels = createFrontWallWithDoor(
-        innerWidth,  // Width between side wall flanges
+        backWallWidth,  // Same width as back wall
         h,
-        -w / 2 + t + flangeW,  // Start after left side wall + flange
+        -w / 2 + flangeW + t,  // Start at left side wall inner face
         d / 2 - flangeW - t / 2,  // Flange tip at d/2
         180,
         doorConfig,
-        true,   // left corner flange (connects to left side wall)
-        true    // right corner flange (connects to right side wall)
+        false,  // no left corner flange (butts against side wall)
+        false   // no right corner flange (butts against side wall)
       );
       allPanels.push(...frontPanels);
       
