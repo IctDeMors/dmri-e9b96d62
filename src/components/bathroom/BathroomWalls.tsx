@@ -376,7 +376,9 @@ export const BathroomWalls = ({ config }: BathroomWallsProps) => {
       // Flange tip flush with -w/2, panel center at -w/2 + flangeW + t/2
       allPanels.push(...transformPanelsForOrientation(leftPanels, "z", -w / 2 + flangeW + t / 2));
       
-      // RIGHT WALL - same as left wall, mirrored
+      // RIGHT WALL - mirrored from left wall
+      // Due to opposite rotation (+90° vs -90°), flipFlanges must be FALSE
+      // so flanges still point outward (+X direction after rotation)
       const rightPanels = createWallPanels(
         "right",
         sideWallLength,
@@ -388,7 +390,7 @@ export const BathroomWalls = ({ config }: BathroomWallsProps) => {
         false,  // endFlange: no corner flange at end/front (+d/2)
         DEFAULT_FLANGE_WIDTH,
         DEFAULT_FLANGE_WIDTH,
-        true    // flipFlanges=true: after 90° rotation, flanges point +X (outward)
+        false   // flipFlanges=false: after 90° rotation, flanges point +X (outward)
       );
       // Flange tip flush with w/2, panel center at w/2 - flangeW - t/2
       allPanels.push(...transformPanelsForOrientation(rightPanels, "z", w / 2 - flangeW - t / 2));
