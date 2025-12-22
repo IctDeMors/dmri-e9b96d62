@@ -13,83 +13,69 @@ const SCALE = 1 / 1000;
 const PANEL_THICKNESS = 19; // 19mm panel thickness
 
 /**
- * Creates a 3D shape for a wall panel with flanges.
+ * Creates a 3D wall panel with optional flanges on left and/or right side.
  * 
- * The panel is a flat plate that gets bent/folded at the edges to create flanges.
- * Viewed from above (looking down at bathroom):
+ * Top-down view (looking at floor):
  * 
- *    OUTSIDE (away from bathroom)
- *         ↑
- *    ┌────┴────┐
- *    │         │  ← left flange (folded outward)
- *    │    ┌────┘
- *    │    │
- *    │    │  ← main panel (interior face)
- *    │    │
- *    │    └────┐
- *    │         │  ← right flange (folded outward)
- *    └────┬────┘
- *         ↓
- *    INSIDE (bathroom interior)
- * 
- * The flanges fold outward, perpendicular to the main panel face.
+ *       LEFT FLANGE          MAIN PANEL           RIGHT FLANGE
+ *           ║                                          ║
+ *           ║←── leftFlange ──→║←── width ──→║←── rightFlange ──→║
+ *           ║                  ║             ║                   ║
+ *    ═══════╝                  ╚═════════════╝                   ╚═══════
+ *    
+ * Interior face (Z=0) faces toward bathroom interior
+ * Flanges extend perpendicular, toward the outside (negative Z)
  */
 export const WallPanel3D = ({ panel, selected, onClick }: WallPanel3DProps) => {
   const geometry = useMemo(() => {
     const w = panel.width * SCALE;
     const h = panel.height * SCALE;
     const t = PANEL_THICKNESS * SCALE;
-    const leftFlange = panel.flange.type === "left" || panel.flange.type === "both" 
+    const leftF = panel.flange.type === "left" || panel.flange.type === "both" 
       ? panel.flange.leftWidth * SCALE 
       : 0;
-    const rightFlange = panel.flange.type === "right" || panel.flange.type === "both" 
+    const rightF = panel.flange.type === "right" || panel.flange.type === "both" 
       ? panel.flange.rightWidth * SCALE 
       : 0;
 
-    // Create the shape from the top view (X-Z plane)
-    // X = along the wall width, Z = depth (into/out of bathroom)
-    // Panel faces toward +Z (interior), flanges extend toward -Z (exterior)
+    // Create shape in X-Z plane (top-down view)
+    // X = along wall width, Z = depth
+    // Interior face at Z = t, exterior at Z = 0
+    // Flanges extend in -Z direction from the ends
     const shape = new THREE.Shape();
+    
+    const halfW = w / 2;
+    
+    // Start at bottom-left of main panel (exterior side)
+    shape.moveTo(-halfW, 0);
+    
+    // Left flange (if present)
+    if (leftF > 0) {
+      shape.lineTo(-halfW, -leftF);      // Extend left flange outward
+      shape.lineTo(-halfW - t, -leftF);  // Flange thickness
+      shape.lineTo(-halfW - t, t);       // Back to main panel level
+      shape.lineTo(-halfW, t);           // Interior corner
+    } else {
+      shape.lineTo(-halfW, t);           // Just go to interior face
+    }
+    
+    // Along interior face to right side
+    shape.lineTo(halfW, t);
+    
+    // Right flange (if present)
+    if (rightF > 0) {
+      shape.lineTo(halfW + t, t);        // Start of right flange
+      shape.lineTo(halfW + t, -rightF);  // Flange extends outward
+      shape.lineTo(halfW, -rightF);      // Flange thickness
+      shape.lineTo(halfW, 0);            // Back to exterior
+    } else {
+      shape.lineTo(halfW, 0);            // Just exterior corner
+    }
+    
+    // Close the shape along exterior
+    shape.lineTo(-halfW, 0);
 
-    // Start at interior face, left edge
-    // Interior face is at Z = 0, exterior at Z = -t
-    
-    if (leftFlange > 0) {
-      // Start at end of left flange (exterior)
-      shape.moveTo(-w / 2 - leftFlange, -t);
-      // Go along exterior of left flange
-      shape.lineTo(-w / 2 - leftFlange, 0);
-      // Interior edge of left flange, turn toward main panel
-      shape.lineTo(-w / 2, 0);
-    } else {
-      // Start at left edge of main panel, exterior
-      shape.moveTo(-w / 2, -t);
-      shape.lineTo(-w / 2, 0);
-    }
-    
-    // Along interior face of main panel to right side
-    if (rightFlange > 0) {
-      shape.lineTo(w / 2, 0);
-      // Interior edge of right flange
-      shape.lineTo(w / 2 + rightFlange, 0);
-      // Exterior edge of right flange
-      shape.lineTo(w / 2 + rightFlange, -t);
-      // Back along exterior of right flange
-      shape.lineTo(w / 2, -t);
-    } else {
-      shape.lineTo(w / 2, 0);
-      shape.lineTo(w / 2, -t);
-    }
-    
-    // Back along exterior of main panel
-    if (leftFlange > 0) {
-      shape.lineTo(-w / 2, -t);
-      shape.lineTo(-w / 2 - leftFlange, -t);
-    } else {
-      shape.lineTo(-w / 2, -t);
-    }
-
-    // Extrude upward (Y direction)
+    // Extrude upward for wall height
     const extrudeSettings = {
       steps: 1,
       depth: h,
@@ -97,7 +83,7 @@ export const WallPanel3D = ({ panel, selected, onClick }: WallPanel3DProps) => {
     };
 
     const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-    // Rotate so it stands upright: extrusion was along Z, rotate to be along Y
+    // Rotate to stand upright (extrusion was +Z, needs to be +Y)
     geo.rotateX(-Math.PI / 2);
     
     return geo;
