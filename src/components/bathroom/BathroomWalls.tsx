@@ -25,7 +25,8 @@ function createPanel(
   rotation: number,
   flangeType: FlangeConfig["type"],
   leftFlangeWidth: number = DEFAULT_FLANGE_WIDTH,
-  rightFlangeWidth: number = DEFAULT_FLANGE_WIDTH
+  rightFlangeWidth: number = DEFAULT_FLANGE_WIDTH,
+  flipFlanges: boolean = false
 ): WallPanel {
   return {
     id,
@@ -39,6 +40,7 @@ function createPanel(
       leftWidth: flangeType === "left" || flangeType === "both" ? leftFlangeWidth : 0,
       rightWidth: flangeType === "right" || flangeType === "both" ? rightFlangeWidth : 0,
     },
+    flipFlanges,
   };
 }
 
@@ -73,7 +75,10 @@ function createBackWallPanels(
         wallLength,
         wallHeight,
         rotation,
-        "both"
+        "both",
+        DEFAULT_FLANGE_WIDTH,
+        DEFAULT_FLANGE_WIDTH,
+        true  // flipFlanges for back wall
       ));
     } else {
       // Two panels
@@ -85,7 +90,10 @@ function createBackWallPanels(
         halfWidth,
         wallHeight,
         rotation,
-        "left"
+        "left",
+        DEFAULT_FLANGE_WIDTH,
+        DEFAULT_FLANGE_WIDTH,
+        true  // flipFlanges for back wall
       ));
       panels.push(createPanel(
         `${wallId}-right`,
@@ -94,7 +102,10 @@ function createBackWallPanels(
         halfWidth,
         wallHeight,
         rotation,
-        "right"
+        "right",
+        DEFAULT_FLANGE_WIDTH,
+        DEFAULT_FLANGE_WIDTH,
+        true  // flipFlanges for back wall
       ));
     }
   } else {
@@ -107,7 +118,10 @@ function createBackWallPanels(
       sideWidth,
       wallHeight,
       rotation,
-      "left"
+      "left",
+      DEFAULT_FLANGE_WIDTH,
+      DEFAULT_FLANGE_WIDTH,
+      true  // flipFlanges for back wall
     ));
     
     // Middle panel (passtrook) - no flanges, butts against adjacent panels
@@ -118,7 +132,10 @@ function createBackWallPanels(
       middleWidth,
       wallHeight,
       rotation,
-      "none"
+      "none",
+      DEFAULT_FLANGE_WIDTH,
+      DEFAULT_FLANGE_WIDTH,
+      true  // flipFlanges for back wall
     ));
     
     // Right panel with corner flange
@@ -129,7 +146,10 @@ function createBackWallPanels(
       sideWidth,
       wallHeight,
       rotation,
-      "right"
+      "right",
+      DEFAULT_FLANGE_WIDTH,
+      DEFAULT_FLANGE_WIDTH,
+      true  // flipFlanges for back wall
     ));
   }
   
@@ -150,7 +170,8 @@ function createWallPanels(
   startFlange: boolean,
   endFlange: boolean,
   flangeWidth: number = DEFAULT_FLANGE_WIDTH,
-  endFlangeWidth: number = flangeWidth
+  endFlangeWidth: number = flangeWidth,
+  flipFlanges: boolean = false
 ): WallPanel[] {
   const panels: WallPanel[] = [];
   
@@ -204,6 +225,7 @@ function createWallPanels(
       height: wallHeight,
       rotation: rotation,
       flange,
+      flipFlanges,
     });
     
     currentX += width;
@@ -245,7 +267,8 @@ function createFrontWallWithDoor(
       leftCornerFlange,  // corner flange on left
       true,              // door frame flange on right
       DEFAULT_FLANGE_WIDTH,
-      DOOR_FLANGE_WIDTH  // door frame uses 55mm flange
+      DOOR_FLANGE_WIDTH,  // door frame uses 55mm flange
+      true  // flipFlanges for front wall
     );
     allPanels.push(...leftPanels);
   }
@@ -262,7 +285,8 @@ function createFrontWallWithDoor(
       true,               // door frame flange on left
       rightCornerFlange,  // corner flange on right
       DOOR_FLANGE_WIDTH,  // door frame uses 55mm flange
-      DEFAULT_FLANGE_WIDTH
+      DEFAULT_FLANGE_WIDTH,
+      true  // flipFlanges for front wall
     );
     allPanels.push(...rightPanels);
   }

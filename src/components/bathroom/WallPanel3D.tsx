@@ -40,40 +40,73 @@ export const WallPanel3D = ({ panel, selected, onClick }: WallPanel3DProps) => {
 
     // Create shape in X-Z plane (top-down view)
     // X = along wall width, Z = depth
-    // Interior face at Z = t, exterior at Z = 0
-    // Flanges extend in -Z direction from the ends
+    // Flanges direction depends on flipFlanges flag
+    const flipFlanges = panel.flipFlanges ?? false;
     const shape = new THREE.Shape();
     
     const halfW = w / 2;
     
-    // Start at bottom-left of main panel (exterior side)
-    shape.moveTo(-halfW, 0);
-    
-    // Left flange (if present)
-    if (leftF > 0) {
-      shape.lineTo(-halfW, -leftF);      // Extend left flange outward
-      shape.lineTo(-halfW - t, -leftF);  // Flange thickness
-      shape.lineTo(-halfW - t, t);       // Back to main panel level
-      shape.lineTo(-halfW, t);           // Interior corner
+    if (flipFlanges) {
+      // Flanges extend in +Z direction (for front/back walls where we need outward flanges)
+      // Start at bottom-left of main panel (interior side)
+      shape.moveTo(-halfW, 0);
+      
+      // Left flange (if present) - extends in +Z direction
+      if (leftF > 0) {
+        shape.lineTo(-halfW, leftF);       // Extend left flange outward (+Z)
+        shape.lineTo(-halfW - t, leftF);   // Flange thickness
+        shape.lineTo(-halfW - t, -t);      // Back to main panel level
+        shape.lineTo(-halfW, -t);          // Exterior corner
+      } else {
+        shape.lineTo(-halfW, -t);          // Just go to exterior face
+      }
+      
+      // Along exterior face to right side
+      shape.lineTo(halfW, -t);
+      
+      // Right flange (if present) - extends in +Z direction
+      if (rightF > 0) {
+        shape.lineTo(halfW + t, -t);       // Start of right flange
+        shape.lineTo(halfW + t, rightF);   // Flange extends outward (+Z)
+        shape.lineTo(halfW, rightF);       // Flange thickness
+        shape.lineTo(halfW, 0);            // Back to interior
+      } else {
+        shape.lineTo(halfW, 0);            // Just interior corner
+      }
+      
+      // Close the shape along interior
+      shape.lineTo(-halfW, 0);
     } else {
-      shape.lineTo(-halfW, t);           // Just go to interior face
+      // Default: Flanges extend in -Z direction (for side walls)
+      // Start at bottom-left of main panel (exterior side)
+      shape.moveTo(-halfW, 0);
+      
+      // Left flange (if present)
+      if (leftF > 0) {
+        shape.lineTo(-halfW, -leftF);      // Extend left flange outward
+        shape.lineTo(-halfW - t, -leftF);  // Flange thickness
+        shape.lineTo(-halfW - t, t);       // Back to main panel level
+        shape.lineTo(-halfW, t);           // Interior corner
+      } else {
+        shape.lineTo(-halfW, t);           // Just go to interior face
+      }
+      
+      // Along interior face to right side
+      shape.lineTo(halfW, t);
+      
+      // Right flange (if present)
+      if (rightF > 0) {
+        shape.lineTo(halfW + t, t);        // Start of right flange
+        shape.lineTo(halfW + t, -rightF);  // Flange extends outward
+        shape.lineTo(halfW, -rightF);      // Flange thickness
+        shape.lineTo(halfW, 0);            // Back to exterior
+      } else {
+        shape.lineTo(halfW, 0);            // Just exterior corner
+      }
+      
+      // Close the shape along exterior
+      shape.lineTo(-halfW, 0);
     }
-    
-    // Along interior face to right side
-    shape.lineTo(halfW, t);
-    
-    // Right flange (if present)
-    if (rightF > 0) {
-      shape.lineTo(halfW + t, t);        // Start of right flange
-      shape.lineTo(halfW + t, -rightF);  // Flange extends outward
-      shape.lineTo(halfW, -rightF);      // Flange thickness
-      shape.lineTo(halfW, 0);            // Back to exterior
-    } else {
-      shape.lineTo(halfW, 0);            // Just exterior corner
-    }
-    
-    // Close the shape along exterior
-    shape.lineTo(-halfW, 0);
 
     // Extrude upward for wall height
     const extrudeSettings = {
