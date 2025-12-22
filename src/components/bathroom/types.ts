@@ -22,6 +22,29 @@ export interface SanitaryItem {
   rotation: number; // in degrees
 }
 
+// Flens configuratie: __|, |__|, |__
+export type FlangeType = "none" | "left" | "right" | "both";
+
+export interface FlangeConfig {
+  type: FlangeType;
+  leftWidth: number;  // breedte linker flens in mm (max 150mm)
+  rightWidth: number; // breedte rechter flens in mm (max 150mm)
+}
+
+export interface WallPanel {
+  id: string;
+  // Positie van het paneel (center punt van basis)
+  x: number;
+  z: number;
+  // Paneel afmetingen
+  width: number;      // breedte plaat in mm (170-1210mm)
+  height: number;     // hoogte in mm (default 2400mm)
+  // Oriëntatie
+  rotation: number;   // rotatie in graden rond Y-as
+  // Flens configuratie
+  flange: FlangeConfig;
+}
+
 export interface PartitionWall {
   id: string;
   startX: number;
@@ -29,6 +52,8 @@ export interface PartitionWall {
   endX: number;
   endZ: number;
   height: number;
+  // Optional panel-based configuration
+  panels?: WallPanel[];
 }
 
 export interface LShapeConfig {

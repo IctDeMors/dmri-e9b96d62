@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import type { BathroomConfig } from "./types";
+import type { BathroomConfig, WallPanel } from "./types";
+import { WallPanels } from "./WallPanel3D";
 
 interface BathroomWallsProps {
   config: BathroomConfig;
@@ -7,111 +8,203 @@ interface BathroomWallsProps {
 
 // Scale: 1000mm = 1 unit
 const SCALE = 1 / 1000;
-const WALL_THICKNESS = 19; // 19mm panel thickness
+const PANEL_THICKNESS = 19; // 19mm panel thickness
+const DEFAULT_FLANGE_WIDTH = 100; // Default flange width in mm
 
+/**
+ * Generates wall panels for the bathroom based on configuration.
+ * Panels have 19mm thickness with configurable flanges:
+ * - __| (right flange)
+ * - |__| (both flanges)
+ * - |__ (left flange)
+ */
 export const BathroomWalls = ({ config }: BathroomWallsProps) => {
   const { dimensions, floorShape, lShapeConfig } = config;
   
-  const walls = useMemo(() => {
-    const w = dimensions.width * SCALE;
-    const d = dimensions.depth * SCALE;
-    const h = dimensions.height * SCALE;
-    const t = WALL_THICKNESS * SCALE;
-    
-    const wallPieces: Array<{
-      id: string;
-      position: [number, number, number];
-      size: [number, number, number];
-    }> = [];
+  const wallPanels = useMemo<WallPanel[]>(() => {
+    const w = dimensions.width;
+    const d = dimensions.depth;
+    const h = dimensions.height;
+    const panels: WallPanel[] = [];
     
     if (floorShape === "rectangle") {
-      // Back wall
-      wallPieces.push({
-        id: "back",
-        position: [0, h / 2, -d / 2 + t / 2],
-        size: [w, h, t],
+      // Back wall - full width panel with flanges on both ends
+      // Panel positioned at back, facing forward
+      panels.push({
+        id: "back-wall",
+        x: 0,
+        z: -d / 2 + PANEL_THICKNESS / 2,
+        width: w - 2 * PANEL_THICKNESS, // Account for corner flanges
+        height: h,
+        rotation: 0,
+        flange: {
+          type: "both",
+          leftWidth: DEFAULT_FLANGE_WIDTH,
+          rightWidth: DEFAULT_FLANGE_WIDTH,
+        },
       });
-      // Left wall
-      wallPieces.push({
-        id: "left",
-        position: [-w / 2 + t / 2, h / 2, 0],
-        size: [t, h, d],
+      
+      // Left wall - panel with flange at back corner
+      // Rotated 90 degrees, flange connects to back wall
+      panels.push({
+        id: "left-wall",
+        x: -w / 2 + PANEL_THICKNESS / 2,
+        z: 0,
+        width: d - PANEL_THICKNESS,
+        height: h,
+        rotation: 90,
+        flange: {
+          type: "right", // Right side flange (at back when rotated)
+          leftWidth: 0,
+          rightWidth: DEFAULT_FLANGE_WIDTH,
+        },
       });
-      // Right wall
-      wallPieces.push({
-        id: "right",
-        position: [w / 2 - t / 2, h / 2, 0],
-        size: [t, h, d],
+      
+      // Right wall - panel with flange at back corner
+      // Rotated -90 degrees, flange connects to back wall
+      panels.push({
+        id: "right-wall",
+        x: w / 2 - PANEL_THICKNESS / 2,
+        z: 0,
+        width: d - PANEL_THICKNESS,
+        height: h,
+        rotation: -90,
+        flange: {
+          type: "right", // Right side flange (at back when rotated)
+          leftWidth: 0,
+          rightWidth: DEFAULT_FLANGE_WIDTH,
+        },
       });
     } else if (floorShape === "l-shape" && lShapeConfig) {
-      const cutW = lShapeConfig.cutoutWidth * SCALE;
-      const cutD = lShapeConfig.cutoutDepth * SCALE;
+      const cutW = lShapeConfig.cutoutWidth;
+      const cutD = lShapeConfig.cutoutDepth;
       
-      // Generate L-shape walls based on cutout corner
       switch (lShapeConfig.cutoutCorner) {
         case "top-right":
-          // Back wall (full width until cutout)
-          wallPieces.push({
-            id: "back-1",
-            position: [-(cutW / 2), h / 2, -d / 2 + t / 2],
-            size: [w - cutW, h, t],
+          // Back wall left section with both flanges
+          panels.push({
+            id: "back-left",
+            x: -(cutW / 2),
+            z: -d / 2 + PANEL_THICKNESS / 2,
+            width: w - cutW - PANEL_THICKNESS,
+            height: h,
+            rotation: 0,
+            flange: {
+              type: "both",
+              leftWidth: DEFAULT_FLANGE_WIDTH,
+              rightWidth: DEFAULT_FLANGE_WIDTH,
+            },
           });
-          // Back wall inner segment
-          wallPieces.push({
+          
+          // Inner back wall (after cutout) with right flange
+          panels.push({
             id: "back-inner",
-            position: [w / 2 - cutW / 2, h / 2, -d / 2 + cutD + t / 2],
-            size: [cutW, h, t],
+            x: w / 2 - cutW / 2,
+            z: -d / 2 + cutD + PANEL_THICKNESS / 2,
+            width: cutW - PANEL_THICKNESS,
+            height: h,
+            rotation: 0,
+            flange: {
+              type: "left",
+              leftWidth: DEFAULT_FLANGE_WIDTH,
+              rightWidth: 0,
+            },
           });
-          // Left wall
-          wallPieces.push({
-            id: "left",
-            position: [-w / 2 + t / 2, h / 2, 0],
-            size: [t, h, d],
+          
+          // Left wall - full depth with back flange
+          panels.push({
+            id: "left-wall",
+            x: -w / 2 + PANEL_THICKNESS / 2,
+            z: 0,
+            width: d - PANEL_THICKNESS,
+            height: h,
+            rotation: 90,
+            flange: {
+              type: "right",
+              leftWidth: 0,
+              rightWidth: DEFAULT_FLANGE_WIDTH,
+            },
           });
-          // Right wall (partial)
-          wallPieces.push({
-            id: "right",
-            position: [w / 2 - t / 2, h / 2, cutD / 2],
-            size: [t, h, d - cutD],
+          
+          // Right wall - partial, below cutout
+          panels.push({
+            id: "right-wall",
+            x: w / 2 - PANEL_THICKNESS / 2,
+            z: cutD / 2,
+            width: d - cutD - PANEL_THICKNESS,
+            height: h,
+            rotation: -90,
+            flange: {
+              type: "right",
+              leftWidth: 0,
+              rightWidth: DEFAULT_FLANGE_WIDTH,
+            },
           });
-          // Inner wall horizontal
-          wallPieces.push({
-            id: "inner-h",
-            position: [w / 2 - cutW / 2, h / 2, -d / 2 + cutD - t / 2],
-            size: [cutW, h, t],
+          
+          // Inner horizontal wall (cutout edge)
+          panels.push({
+            id: "inner-horizontal",
+            x: w / 2 - cutW / 2,
+            z: -d / 2 + cutD - PANEL_THICKNESS / 2,
+            width: cutW,
+            height: h,
+            rotation: 180,
+            flange: {
+              type: "right",
+              leftWidth: 0,
+              rightWidth: DEFAULT_FLANGE_WIDTH,
+            },
           });
           break;
+          
         default:
-          // Simple walls for other configurations
-          wallPieces.push({
-            id: "back",
-            position: [0, h / 2, -d / 2 + t / 2],
-            size: [w, h, t],
+          // Fallback to simple rectangle walls
+          panels.push({
+            id: "back-wall",
+            x: 0,
+            z: -d / 2 + PANEL_THICKNESS / 2,
+            width: w - 2 * PANEL_THICKNESS,
+            height: h,
+            rotation: 0,
+            flange: {
+              type: "both",
+              leftWidth: DEFAULT_FLANGE_WIDTH,
+              rightWidth: DEFAULT_FLANGE_WIDTH,
+            },
           });
-          wallPieces.push({
-            id: "left",
-            position: [-w / 2 + t / 2, h / 2, 0],
-            size: [t, h, d],
+          
+          panels.push({
+            id: "left-wall",
+            x: -w / 2 + PANEL_THICKNESS / 2,
+            z: 0,
+            width: d - PANEL_THICKNESS,
+            height: h,
+            rotation: 90,
+            flange: {
+              type: "right",
+              leftWidth: 0,
+              rightWidth: DEFAULT_FLANGE_WIDTH,
+            },
           });
-          wallPieces.push({
-            id: "right",
-            position: [w / 2 - t / 2, h / 2, 0],
-            size: [t, h, d],
+          
+          panels.push({
+            id: "right-wall",
+            x: w / 2 - PANEL_THICKNESS / 2,
+            z: 0,
+            width: d - PANEL_THICKNESS,
+            height: h,
+            rotation: -90,
+            flange: {
+              type: "right",
+              leftWidth: 0,
+              rightWidth: DEFAULT_FLANGE_WIDTH,
+            },
           });
       }
     }
     
-    return wallPieces;
+    return panels;
   }, [dimensions, floorShape, lShapeConfig]);
 
-  return (
-    <group>
-      {walls.map((wall) => (
-        <mesh key={wall.id} position={wall.position} castShadow receiveShadow>
-          <boxGeometry args={wall.size} />
-          <meshStandardMaterial color="#F5F5F0" roughness={0.6} />
-        </mesh>
-      ))}
-    </group>
-  );
+  return <WallPanels panels={wallPanels} />;
 };
