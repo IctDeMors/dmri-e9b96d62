@@ -10,7 +10,7 @@ import type { BathroomConfig } from "./types";
 interface BathroomSceneProps {
   config: BathroomConfig;
   selectedItemId: string | null;
-  onSelectItem: (id: string) => void;
+  onSelectItem: (id: string | null) => void;
   onDragItem: (id: string, position: { x: number; z: number }) => void;
   controlsRef?: React.RefObject<OrbitControlsImpl>;
 }
@@ -28,8 +28,12 @@ export const BathroomScene = ({
   const localControlsRef = useRef<OrbitControlsImpl>(null);
   const controls = controlsRef || localControlsRef;
 
-  const w = config.dimensions.width * SCALE;
-  const d = config.dimensions.depth * SCALE;
+  const handleBackgroundClick = (e: any) => {
+    // Only deselect if clicking on the floor/background, not on items
+    if (e.object.userData.isBackground) {
+      onSelectItem(null);
+    }
+  };
 
   return (
     <>
@@ -78,18 +82,15 @@ export const BathroomScene = ({
         selectedId={selectedItemId}
         onSelect={onSelectItem}
         onDrag={onDragItem}
+        bathroomDimensions={config.dimensions}
       />
 
-      {/* Floor plane for drag detection */}
+      {/* Background click plane for deselection */}
       <mesh
-        position={[0, 0, 0]}
+        position={[0, -0.01, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
-        visible={false}
-        onPointerMove={(e) => {
-          if (selectedItemId && e.buttons === 1) {
-            onDragItem(selectedItemId, { x: e.point.x / SCALE, z: e.point.z / SCALE });
-          }
-        }}
+        onClick={handleBackgroundClick}
+        userData={{ isBackground: true }}
       >
         <planeGeometry args={[20, 20]} />
         <meshBasicMaterial transparent opacity={0} />
