@@ -79,12 +79,19 @@ function createBackWallPanels(
 
 /**
  * Divides a wall segment into panels following the element pattern:
- * - First panel: "Wand Flens rechts" (flange on right side = left of viewing direction)
- * - Middle panels: "Wand Flens links en rechts" (flanges on both sides)
- * - Last panel: "Wand Flens links" (flange on left side = right of viewing direction)
+ * 
+ * Viewing from INSIDE the bathroom:
+ * - 1 panel: "Wand Flens links en rechts" (both flanges)
+ * - 2 panels: Both panels as wide as possible, symmetrical
+ *   - First: "Wand Flens rechts" (right flange for connection)
+ *   - Last: "Wand Flens links" (left flange for connection)
+ * - 3+ panels: Outer panels max width (symmetrical), middle panel(s) variable width
+ *   - First: "Wand Flens rechts" (right flange)
+ *   - Middle: "Wand Flens links en rechts" (both flanges, variable width)
+ *   - Last: "Wand Flens links" (left flange)
  * 
  * Max panel width: 900mm
- * Max combined flange length: 1210mm (panel + 2 flanges)
+ * All flanges point OUTWARD - interior is always smooth
  */
 function createWallPanels(
   wallId: string,
@@ -103,67 +110,37 @@ function createWallPanels(
   
   if (wallLength <= 0) return panels;
   
-  // Calculate panel distribution
-  // Each panel can be max 900mm wide
-  const numFullPanels = Math.ceil(wallLength / MAX_PANEL_WIDTH);
-  const panelWidth = wallLength / numFullPanels;
+  // Calculate optimal panel distribution
+  // Strategy: outer panels as wide as possible (up to MAX_PANEL_WIDTH), symmetrical
+  // Middle panel(s) get the remaining width (variable)
   
-  let currentX = startX;
+  const numPanels = Math.ceil(wallLength / MAX_PANEL_WIDTH);
   
-  for (let i = 0; i < numFullPanels; i++) {
-    const isFirst = i === 0;
-    const isLast = i === numFullPanels - 1;
-    const isOnly = numFullPanels === 1;
-    
-    // Determine flange configuration based on position:
-    // - First panel: corner flange on left (if startFlange), connection flange on right
-    // - Middle panels: connection flanges on both sides  
-    // - Last panel: connection flange on left, corner flange on right (if endFlange)
-    // - Single panel: corner flanges on both sides (if applicable)
-    
+  if (numPanels === 1) {
+    // Single panel - use full width, both flanges if applicable
     let flangeType: FlangeConfig["type"];
     let leftFlangeW = 0;
     let rightFlangeW = 0;
     
-    if (isOnly) {
-      // Single panel - flanges based on wall position
-      if (startFlange && endFlange) {
-        flangeType = "both";
-        leftFlangeW = flangeWidth;
-        rightFlangeW = endFlangeWidth;
-      } else if (startFlange) {
-        flangeType = "left";
-        leftFlangeW = flangeWidth;
-      } else if (endFlange) {
-        flangeType = "right";
-        rightFlangeW = endFlangeWidth;
-      } else {
-        flangeType = "none";
-      }
-    } else if (isFirst) {
-      // First panel of multiple - left corner flange (if applicable), right connection flange
-      flangeType = startFlange ? "both" : "right";
-      leftFlangeW = startFlange ? flangeWidth : 0;
-      rightFlangeW = DEFAULT_FLANGE_WIDTH; // Connection flange to next panel
-    } else if (isLast) {
-      // Last panel of multiple - left connection flange, right corner flange (if applicable)
-      flangeType = endFlange ? "both" : "left";
-      leftFlangeW = DEFAULT_FLANGE_WIDTH; // Connection flange from previous panel
-      rightFlangeW = endFlange ? endFlangeWidth : 0;
-    } else {
-      // Middle panel - flanges on both sides for connections
+    if (startFlange && endFlange) {
       flangeType = "both";
-      leftFlangeW = DEFAULT_FLANGE_WIDTH;
-      rightFlangeW = DEFAULT_FLANGE_WIDTH;
+      leftFlangeW = flangeWidth;
+      rightFlangeW = endFlangeWidth;
+    } else if (startFlange) {
+      flangeType = "left";
+      leftFlangeW = flangeWidth;
+    } else if (endFlange) {
+      flangeType = "right";
+      rightFlangeW = endFlangeWidth;
+    } else {
+      flangeType = "none";
     }
     
-    const panelCenterX = currentX + panelWidth / 2;
-    
     panels.push({
-      id: `${wallId}-${i}`,
-      x: panelCenterX,
+      id: `${wallId}-0`,
+      x: startX + wallLength / 2,
       z: posZ,
-      width: panelWidth,
+      width: wallLength,
       height: wallHeight,
       rotation: rotation,
       flange: {
@@ -173,8 +150,102 @@ function createWallPanels(
       },
       flipFlanges,
     });
+  } else if (numPanels === 2) {
+    // Two panels - symmetrical, each half the wall length
+    const panelWidth = wallLength / 2;
     
-    currentX += panelWidth;
+    // First panel: flens rechts (right flange for connection)
+    panels.push({
+      id: `${wallId}-0`,
+      x: startX + panelWidth / 2,
+      z: posZ,
+      width: panelWidth,
+      height: wallHeight,
+      rotation: rotation,
+      flange: {
+        type: startFlange ? "both" : "right",
+        leftWidth: startFlange ? flangeWidth : 0,
+        rightWidth: DEFAULT_FLANGE_WIDTH,
+      },
+      flipFlanges,
+    });
+    
+    // Last panel: flens links (left flange for connection)
+    panels.push({
+      id: `${wallId}-1`,
+      x: startX + panelWidth + panelWidth / 2,
+      z: posZ,
+      width: panelWidth,
+      height: wallHeight,
+      rotation: rotation,
+      flange: {
+        type: endFlange ? "both" : "left",
+        leftWidth: DEFAULT_FLANGE_WIDTH,
+        rightWidth: endFlange ? endFlangeWidth : 0,
+      },
+      flipFlanges,
+    });
+  } else {
+    // 3+ panels: outer panels max width (symmetrical), middle panel(s) variable
+    // Calculate outer panel width (max 900mm, but symmetrical)
+    const outerPanelWidth = Math.min(MAX_PANEL_WIDTH, wallLength / numPanels);
+    const remainingWidth = wallLength - (2 * outerPanelWidth);
+    const numMiddlePanels = numPanels - 2;
+    const middlePanelWidth = remainingWidth / numMiddlePanels;
+    
+    let currentX = startX;
+    
+    // First panel: flens rechts (corner flange left if applicable, connection flange right)
+    panels.push({
+      id: `${wallId}-0`,
+      x: currentX + outerPanelWidth / 2,
+      z: posZ,
+      width: outerPanelWidth,
+      height: wallHeight,
+      rotation: rotation,
+      flange: {
+        type: startFlange ? "both" : "right",
+        leftWidth: startFlange ? flangeWidth : 0,
+        rightWidth: DEFAULT_FLANGE_WIDTH,
+      },
+      flipFlanges,
+    });
+    currentX += outerPanelWidth;
+    
+    // Middle panels: flens links en rechts (both flanges, variable width)
+    for (let i = 0; i < numMiddlePanels; i++) {
+      panels.push({
+        id: `${wallId}-${i + 1}`,
+        x: currentX + middlePanelWidth / 2,
+        z: posZ,
+        width: middlePanelWidth,
+        height: wallHeight,
+        rotation: rotation,
+        flange: {
+          type: "both",
+          leftWidth: DEFAULT_FLANGE_WIDTH,
+          rightWidth: DEFAULT_FLANGE_WIDTH,
+        },
+        flipFlanges,
+      });
+      currentX += middlePanelWidth;
+    }
+    
+    // Last panel: flens links (connection flange left, corner flange right if applicable)
+    panels.push({
+      id: `${wallId}-${numPanels - 1}`,
+      x: currentX + outerPanelWidth / 2,
+      z: posZ,
+      width: outerPanelWidth,
+      height: wallHeight,
+      rotation: rotation,
+      flange: {
+        type: endFlange ? "both" : "left",
+        leftWidth: DEFAULT_FLANGE_WIDTH,
+        rightWidth: endFlange ? endFlangeWidth : 0,
+      },
+      flipFlanges,
+    });
   }
   
   return panels;
