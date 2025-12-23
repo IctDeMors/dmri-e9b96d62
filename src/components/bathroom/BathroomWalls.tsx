@@ -402,15 +402,14 @@ export const BathroomWalls = ({ config }: BathroomWallsProps) => {
       allPanels.push(...transformPanelsForOrientation(rightPanels, "z", w / 2 - flangeW - t / 2));
       
       // BACK WALL - fits INSIDE the side walls
-      // Back wall corner flanges connect to the INNER face of side wall panels
-      // Side wall panel inner face at: -w/2 + flangeW + t (left) and w/2 - flangeW - t (right)
-      // Back wall width = space between side wall inner faces MINUS the corner flanges
-      const backWallWidth = w - 2 * (flangeW + t + flangeW);  // Subtract side wall + back wall corner flanges
+      // Back wall spans from left side wall inner face to right side wall inner face
+      // Side wall inner face at: -w/2 + flangeW + t (left) and w/2 - flangeW - t (right)
+      const backWallWidth = w - 2 * (flangeW + t);  // Width between side wall inner faces
       const backPanels = createWallPanels(
         "back",
         backWallWidth,
         h,
-        -w / 2 + flangeW + t + flangeW,  // Start after left side wall + corner flange
+        -w / 2 + flangeW + t,  // Start at left side wall inner face
         -d / 2 + flangeW + t / 2,  // Panel center so flange tip at -d/2
         0,
         true,   // left corner flange (connects to side wall inner face)
@@ -421,11 +420,11 @@ export const BathroomWalls = ({ config }: BathroomWallsProps) => {
       );
       allPanels.push(...backPanels);
       
-      // FRONT WALL - fits INSIDE the side walls, same principle as back wall
+      // FRONT WALL - fits INSIDE the side walls, same width as back wall
       const frontPanels = createFrontWallWithDoor(
         backWallWidth,  // Same width as back wall
         h,
-        -w / 2 + flangeW + t + flangeW,  // Start after left side wall + corner flange
+        -w / 2 + flangeW + t,  // Start at left side wall inner face
         d / 2 - flangeW - t / 2,  // Panel center so flange tip at d/2
         180,
         doorConfig,
