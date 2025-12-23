@@ -78,12 +78,10 @@ const TifaIFC = () => {
       const modelId = ifcApi.OpenModel(uint8Array);
       const rows: IFCDataRow[] = [];
 
-      // Get all element types we want to extract (windows, doors, etc.)
+      // Only extract IfcWindow and IfcDoor entities
       const elementTypes = [
         { type: WebIFC.IFCWINDOW, prefix: "Window" },
         { type: WebIFC.IFCDOOR, prefix: "Door" },
-        { type: WebIFC.IFCWALL, prefix: "Wall" },
-        { type: WebIFC.IFCSLAB, prefix: "Slab" },
       ];
 
       for (const { type, prefix } of elementTypes) {
