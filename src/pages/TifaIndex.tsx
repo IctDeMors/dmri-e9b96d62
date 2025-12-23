@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowLeft, Users, Construction, FileBox } from "lucide-react";
+import { ArrowLeft, Users, Construction, FileBox, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -19,6 +19,14 @@ const pages = [
     icon: FileBox,
     path: "/tifa/ifc",
     color: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+  },
+  {
+    id: "ifc-conversie",
+    name: "IFC Conversie",
+    description: "Unieke kozijnen uit assembly code 31.x",
+    icon: RefreshCw,
+    path: "/tifa/ifc-conversie",
+    color: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
   },
 ];
 
