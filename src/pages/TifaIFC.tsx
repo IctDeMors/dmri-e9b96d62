@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, FileBox, Upload, Search, Filter, X, Loader2 } from "lucide-react";
+import { ArrowLeft, FileBox, Upload, Search, X, Loader2, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import * as WebIFC from "web-ifc";
 
@@ -29,9 +29,9 @@ const TifaIFC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [ifcApi, setIfcApi] = useState<WebIFC.IfcAPI | null>(null);
+  const [selectedItem, setSelectedItem] = useState<IFCDataRow | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Initialize web-ifc API
   useEffect(() => {
     const initIfcApi = async () => {
       const api = new WebIFC.IfcAPI();
@@ -43,14 +43,10 @@ const TifaIFC = () => {
   }, []);
 
   const extractTransformData = (flatTransformation: number[] | Float32Array) => {
-    // Extract position from the 4x4 transformation matrix (column-major)
-    // Position is in the last column (indices 12, 13, 14)
     const x = flatTransformation[12]?.toFixed(3) || "0";
     const y = flatTransformation[13]?.toFixed(3) || "0";
     const z = flatTransformation[14]?.toFixed(3) || "0";
 
-    // Extract rotation from the rotation part of the matrix
-    // This is a simplified extraction - actual rotation would need quaternion/euler conversion
     const rotX = Math.atan2(flatTransformation[6], flatTransformation[10]) * (180 / Math.PI);
     const rotY = Math.atan2(-flatTransformation[2], Math.sqrt(flatTransformation[6] ** 2 + flatTransformation[10] ** 2)) * (180 / Math.PI);
     const rotZ = Math.atan2(flatTransformation[1], flatTransformation[0]) * (180 / Math.PI);
@@ -78,7 +74,6 @@ const TifaIFC = () => {
       const modelId = ifcApi.OpenModel(uint8Array);
       const rows: IFCDataRow[] = [];
 
-      // Only extract IfcWindow and IfcDoor entities
       const elementTypes = [
         { type: WebIFC.IFCWINDOW, prefix: "Window" },
         { type: WebIFC.IFCDOOR, prefix: "Door" },
@@ -91,22 +86,11 @@ const TifaIFC = () => {
           const expressId = elementIds.get(i);
           const props = ifcApi.GetLine(modelId, expressId);
           
-          // Get element name/tag
           const name = props.Name?.value || props.Tag?.value || `${prefix}.${expressId}`;
-          
-          // Get dimensions
           const width = props.OverallWidth?.value?.toFixed(0) || "";
           const height = props.OverallHeight?.value?.toFixed(0) || "";
 
-          // Try to get placement/transformation
-          let transformData = {
-            x: "",
-            y: "",
-            z: "",
-            rotX: "",
-            rotY: "",
-            rotZ: "",
-          };
+          let transformData = { x: "", y: "", z: "", rotX: "", rotY: "", rotZ: "" };
 
           try {
             const mesh = ifcApi.GetFlatMesh(modelId, expressId);
@@ -114,16 +98,12 @@ const TifaIFC = () => {
               const placedGeometry = mesh.geometries.get(0);
               transformData = extractTransformData(placedGeometry.flatTransformation);
             }
-          } catch (e) {
-            // Some elements might not have geometry
-          }
+          } catch (e) {}
 
-          // Get building structure info (if available)
           let bouwblok = "";
           let bouwdeel = "";
           let bouwlaag = "";
 
-          // Try to find spatial containment
           try {
             const relContainedIds = ifcApi.GetLineIDsWithType(modelId, WebIFC.IFCRELCONTAINEDINSPATIALSTRUCTURE);
             for (let j = 0; j < relContainedIds.size(); j++) {
@@ -134,7 +114,6 @@ const TifaIFC = () => {
                 const elements = rel.RelatedElements;
                 for (let k = 0; k < elements.length; k++) {
                   if (elements[k].value === expressId) {
-                    // Found the spatial structure containing this element
                     const spatialId = rel.RelatingStructure?.value;
                     if (spatialId) {
                       const spatial = ifcApi.GetLine(modelId, spatialId);
@@ -154,9 +133,7 @@ const TifaIFC = () => {
                 }
               }
             }
-          } catch (e) {
-            // Spatial containment extraction failed
-          }
+          } catch (e) {}
 
           rows.push({
             merk: name,
@@ -233,10 +210,6 @@ const TifaIFC = () => {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <Button variant="outline" className="gap-2">
-            <Filter className="w-4 h-4" />
-            Filters
-          </Button>
           <input
             type="file"
             ref={fileInputRef}
@@ -264,7 +237,7 @@ const TifaIFC = () => {
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <FileBox className="w-5 h-5" />
-                  IFC Data
+                  IFC Elementen
                 </CardTitle>
                 <CardDescription>
                   {fileName
@@ -288,48 +261,82 @@ const TifaIFC = () => {
                 <p className="text-sm mt-1">Upload een .ifc bestand om elementen te extraheren</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Merk</TableHead>
-                      <TableHead>Bouwblok</TableHead>
-                      <TableHead>Bouwdeel</TableHead>
-                      <TableHead>Bouwlaag</TableHead>
-                      <TableHead>Breedte</TableHead>
-                      <TableHead>Hoogte</TableHead>
-                      <TableHead>Project X</TableHead>
-                      <TableHead>Project Y</TableHead>
-                      <TableHead>Project Z</TableHead>
-                      <TableHead>Rotatie X</TableHead>
-                      <TableHead>Rotatie Y</TableHead>
-                      <TableHead>Rotatie Z</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredData.map((row, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-medium">{row.merk}</TableCell>
-                        <TableCell>{row.bouwblok}</TableCell>
-                        <TableCell>{row.bouwdeel}</TableCell>
-                        <TableCell>{row.bouwlaag}</TableCell>
-                        <TableCell>{row.breedte}</TableCell>
-                        <TableCell>{row.hoogte}</TableCell>
-                        <TableCell>{row.projectX}</TableCell>
-                        <TableCell>{row.projectY}</TableCell>
-                        <TableCell>{row.projectZ}</TableCell>
-                        <TableCell>{row.rotatieX}</TableCell>
-                        <TableCell>{row.rotatieY}</TableCell>
-                        <TableCell>{row.rotatieZ}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+              <div className="space-y-2">
+                {filteredData.map((row, index) => (
+                  <div
+                    key={index}
+                    onClick={() => setSelectedItem(row)}
+                    className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-muted/50 cursor-pointer transition-colors"
+                  >
+                    <span className="font-medium">{row.merk}</span>
+                    <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>
         </Card>
       </main>
+
+      <Dialog open={!!selectedItem} onOpenChange={() => setSelectedItem(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{selectedItem?.merk}</DialogTitle>
+          </DialogHeader>
+          {selectedItem && (
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="space-y-3">
+                <div>
+                  <p className="text-muted-foreground">Bouwblok</p>
+                  <p className="font-medium">{selectedItem.bouwblok || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Bouwdeel</p>
+                  <p className="font-medium">{selectedItem.bouwdeel || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Bouwlaag</p>
+                  <p className="font-medium">{selectedItem.bouwlaag || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Breedte</p>
+                  <p className="font-medium">{selectedItem.breedte || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Hoogte</p>
+                  <p className="font-medium">{selectedItem.hoogte || "-"}</p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-muted-foreground">Project X</p>
+                  <p className="font-medium">{selectedItem.projectX || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Project Y</p>
+                  <p className="font-medium">{selectedItem.projectY || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Project Z</p>
+                  <p className="font-medium">{selectedItem.projectZ || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Rotatie X</p>
+                  <p className="font-medium">{selectedItem.rotatieX || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Rotatie Y</p>
+                  <p className="font-medium">{selectedItem.rotatieY || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Rotatie Z</p>
+                  <p className="font-medium">{selectedItem.rotatieZ || "-"}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
