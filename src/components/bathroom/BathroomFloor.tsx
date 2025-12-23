@@ -14,6 +14,11 @@ const FINISHING_THICKNESS = 10; // 1 cm finishing layer
 const FLOOR_COLOR = "#87CEEB"; // Light blue
 const FINISHING_COLOR = "#D3D3D3"; // Light gray
 
+// Wall dimensions (must match BathroomWalls.tsx)
+const PANEL_THICKNESS = 18; // mm
+const FLANGE_WIDTH = 35; // mm
+const WALL_OFFSET = PANEL_THICKNESS + FLANGE_WIDTH; // Total offset from edge to wall inner face
+
 export const BathroomFloor = ({ config }: BathroomFloorProps) => {
   const { dimensions, floorShape, lShapeConfig } = config;
   
@@ -90,22 +95,25 @@ export const BathroomFloor = ({ config }: BathroomFloorProps) => {
     return new THREE.BoxGeometry(w, thickness, d);
   }, [dimensions, floorShape, lShapeConfig]);
 
-  // Finishing layer geometry (1 cm on top of main floor, inside wall area)
+  // Finishing layer geometry (1 cm on top of main floor, INSIDE wall area only)
   const finishingGeometry = useMemo(() => {
-    const w = dimensions.width * SCALE;
-    const d = dimensions.depth * SCALE;
+    // Interior dimensions (inside the walls)
+    const wallOffset = WALL_OFFSET * SCALE;
+    const interiorW = (dimensions.width - 2 * WALL_OFFSET) * SCALE;
+    const interiorD = (dimensions.depth - 2 * WALL_OFFSET) * SCALE;
     const thickness = FINISHING_THICKNESS * SCALE;
     
     if (floorShape === "l-shape" && lShapeConfig) {
-      const cutW = lShapeConfig.cutoutWidth * SCALE;
-      const cutD = lShapeConfig.cutoutDepth * SCALE;
-      const shape = createFloorShape(w, d, cutW, cutD, lShapeConfig.cutoutCorner);
+      // For L-shape, we need to adjust the cutout as well
+      const cutW = (lShapeConfig.cutoutWidth - WALL_OFFSET) * SCALE;
+      const cutD = (lShapeConfig.cutoutDepth - WALL_OFFSET) * SCALE;
+      const shape = createFloorShape(interiorW, interiorD, Math.max(0, cutW), Math.max(0, cutD), lShapeConfig.cutoutCorner);
       const extrudeSettings = { depth: thickness, bevelEnabled: false };
       return new THREE.ExtrudeGeometry(shape, extrudeSettings);
     }
     
-    // Simple rectangle
-    return new THREE.BoxGeometry(w, thickness, d);
+    // Simple rectangle - interior only
+    return new THREE.BoxGeometry(interiorW, thickness, interiorD);
   }, [dimensions, floorShape, lShapeConfig]);
 
   const centerOffset = useMemo(() => {
@@ -114,6 +122,19 @@ export const BathroomFloor = ({ config }: BathroomFloorProps) => {
     
     if (floorShape === "l-shape") {
       return { x: -w / 2, z: -d / 2 };
+    }
+    return { x: 0, z: 0 };
+  }, [dimensions, floorShape]);
+  
+  // Finishing layer offset (centered in interior)
+  const finishingOffset = useMemo(() => {
+    const wallOffset = WALL_OFFSET * SCALE;
+    const interiorW = (dimensions.width - 2 * WALL_OFFSET) * SCALE;
+    const interiorD = (dimensions.depth - 2 * WALL_OFFSET) * SCALE;
+    
+    if (floorShape === "l-shape") {
+      // For L-shape extruded geometry
+      return { x: -interiorW / 2, z: -interiorD / 2 };
     }
     return { x: 0, z: 0 };
   }, [dimensions, floorShape]);
@@ -139,9 +160,9 @@ export const BathroomFloor = ({ config }: BathroomFloorProps) => {
           <primitive object={mainFloorGeometry} attach="geometry" />
           <meshStandardMaterial color={FLOOR_COLOR} roughness={0.8} />
         </mesh>
-        {/* Finishing layer */}
+        {/* Finishing layer - inside walls only */}
         <mesh 
-          position={[centerOffset.x, finishingY, centerOffset.z]} 
+          position={[finishingOffset.x, finishingY, finishingOffset.z]} 
           rotation={[-Math.PI / 2, 0, 0]}
           receiveShadow
         >
@@ -159,7 +180,7 @@ export const BathroomFloor = ({ config }: BathroomFloorProps) => {
         <primitive object={mainFloorGeometry} attach="geometry" />
         <meshStandardMaterial color={FLOOR_COLOR} roughness={0.8} />
       </mesh>
-      {/* Finishing layer */}
+      {/* Finishing layer - inside walls only, centered */}
       <mesh position={[0, finishingY, 0]} receiveShadow>
         <primitive object={finishingGeometry} attach="geometry" />
         <meshStandardMaterial color={FINISHING_COLOR} roughness={0.6} />
