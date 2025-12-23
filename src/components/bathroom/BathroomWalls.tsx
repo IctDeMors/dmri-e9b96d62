@@ -292,7 +292,7 @@ function createFrontWallWithDoor(
       true,              // door frame flange on right
       DEFAULT_FLANGE_WIDTH,
       DOOR_FLANGE_WIDTH,  // door frame uses 55mm flange
-      true  // flipFlanges = true: corner flanges point inward to connect to side walls
+      false  // flipFlanges = false: flanges point OUTWARD
     );
     allPanels.push(...leftPanels);
   }
@@ -310,7 +310,7 @@ function createFrontWallWithDoor(
       rightCornerFlange,  // corner flange on right
       DOOR_FLANGE_WIDTH,  // door frame uses 55mm flange
       DEFAULT_FLANGE_WIDTH,
-      true  // flipFlanges = true: corner flanges point inward to connect to side walls
+      false  // flipFlanges = false: flanges point OUTWARD
     );
     allPanels.push(...rightPanels);
   }
@@ -417,7 +417,7 @@ export const BathroomWalls = ({ config }: BathroomWallsProps) => {
         true,   // right corner flange (connects to side wall inner face)
         DEFAULT_FLANGE_WIDTH,
         DEFAULT_FLANGE_WIDTH,
-        true    // flipFlanges=true: corner flanges point inward (+Z) to connect to side walls
+        false   // flanges point outward (-Z direction)
       );
       allPanels.push(...backPanels);
       
