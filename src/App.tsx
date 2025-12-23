@@ -8,6 +8,7 @@ import Settings from "./pages/Settings";
 import Algemeen from "./pages/Algemeen";
 import TifaIndex from "./pages/TifaIndex";
 import TifaCRM from "./pages/TifaCRM";
+import TifaIFC from "./pages/TifaIFC";
 import PanelenIndex from "./pages/PanelenIndex";
 import PanelenDashboard from "./pages/PanelenDashboard";
 import PanelenOrders from "./pages/PanelenOrders";
@@ -36,6 +37,7 @@ const App = () => (
           <Route path="/algemeen" element={<Algemeen />} />
           <Route path="/tifa" element={<TifaIndex />} />
           <Route path="/tifa/crm" element={<TifaCRM />} />
+          <Route path="/tifa/ifc" element={<TifaIFC />} />
           <Route path="/panelen" element={<PanelenIndex />} />
           <Route path="/panelen/dashboard" element={<PanelenDashboard />} />
           <Route path="/panelen/orders" element={<PanelenOrders />} />

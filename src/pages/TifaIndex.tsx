@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowLeft, Users, Construction } from "lucide-react";
+import { ArrowLeft, Users, Construction, FileBox } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -11,6 +11,14 @@ const pages = [
     icon: Users,
     path: "/tifa/crm",
     color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  },
+  {
+    id: "ifc",
+    name: "IFC Data",
+    description: "IFC bestanden en data beheren",
+    icon: FileBox,
+    path: "/tifa/ifc",
+    color: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
   },
 ];
 
