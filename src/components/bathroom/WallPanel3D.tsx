@@ -83,7 +83,7 @@ export const WallPanel3D = ({ panel, selected, onClick }: WallPanel3DProps) => {
       onClick={onClick}
     >
       <meshStandardMaterial 
-        color={selected ? "#4A90D9" : "#B8B8B0"} 
+        color={selected ? "#4A90D9" : "#FFFFFF"} 
         roughness={0.5}
         metalness={0.2}
         side={THREE.DoubleSide}
