@@ -9,6 +9,20 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import * as WebIFC from "web-ifc";
 
+interface KozijnProperties {
+  bouwblok: string;
+  bouwdeel: string;
+  bouwlaag: string;
+  breedte: string;
+  hoogte: string;
+  projectX: string;
+  projectY: string;
+  projectZ: string;
+  rotatieVectorX: string;
+  rotatieVectorY: string;
+  rotatieVectorZ: string;
+}
+
 interface KozijnData {
   assemblyCode: string;
   name: string;
@@ -16,6 +30,7 @@ interface KozijnData {
   category: string;
   count: number;
   expressIds: number[];
+  properties: KozijnProperties;
 }
 
 const TifaIFCConversie = () => {
@@ -177,6 +192,155 @@ const TifaIFCConversie = () => {
     }
   };
 
+  const getKozijnProperties = (ifcApi: WebIFC.IfcAPI, modelID: number, expressID: number): KozijnProperties => {
+    const props: KozijnProperties = {
+      bouwblok: "",
+      bouwdeel: "",
+      bouwlaag: "",
+      breedte: "",
+      hoogte: "",
+      projectX: "",
+      projectY: "",
+      projectZ: "",
+      rotatieVectorX: "",
+      rotatieVectorY: "",
+      rotatieVectorZ: "",
+    };
+
+    try {
+      const element = ifcApi.GetLine(modelID, expressID, true);
+      
+      // Get all properties from property sets
+      if (element?.IsDefinedBy) {
+        const definitions = Array.isArray(element.IsDefinedBy) ? element.IsDefinedBy : [element.IsDefinedBy];
+        
+        for (const def of definitions) {
+          if (!def?.value) continue;
+          try {
+            const defLine = ifcApi.GetLine(modelID, def.value, true);
+            if (defLine?.RelatingPropertyDefinition?.value) {
+              const propDef = ifcApi.GetLine(modelID, defLine.RelatingPropertyDefinition.value, true);
+              
+              if (propDef?.HasProperties) {
+                const propsList = Array.isArray(propDef.HasProperties) ? propDef.HasProperties : [propDef.HasProperties];
+                for (const prop of propsList) {
+                  if (!prop?.value) continue;
+                  try {
+                    const propLine = ifcApi.GetLine(modelID, prop.value);
+                    const propName = propLine?.Name?.value?.toLowerCase() || "";
+                    const propValue = propLine?.NominalValue?.value;
+                    
+                    if (propValue !== undefined) {
+                      // Map property names to our fields
+                      if (propName.includes("bouwblok") || propName === "building block") {
+                        props.bouwblok = String(propValue);
+                      } else if (propName.includes("bouwdeel") || propName === "building part") {
+                        props.bouwdeel = String(propValue);
+                      } else if (propName.includes("bouwlaag") || propName.includes("storey") || propName.includes("floor") || propName.includes("level")) {
+                        props.bouwlaag = String(propValue);
+                      } else if (propName.includes("breedte") || propName.includes("width") || propName === "overall width") {
+                        props.breedte = String(propValue);
+                      } else if (propName.includes("hoogte") || propName.includes("height") || propName === "overall height") {
+                        props.hoogte = String(propValue);
+                      }
+                    }
+                  } catch (e) {}
+                }
+              }
+              
+              // Check for quantities (Breedte/Hoogte often stored here)
+              if (propDef?.Quantities) {
+                const quantities = Array.isArray(propDef.Quantities) ? propDef.Quantities : [propDef.Quantities];
+                for (const qty of quantities) {
+                  if (!qty?.value) continue;
+                  try {
+                    const qtyLine = ifcApi.GetLine(modelID, qty.value);
+                    const qtyName = qtyLine?.Name?.value?.toLowerCase() || "";
+                    const qtyValue = qtyLine?.LengthValue?.value || qtyLine?.AreaValue?.value || qtyLine?.VolumeValue?.value;
+                    
+                    if (qtyValue !== undefined) {
+                      if (qtyName.includes("width") || qtyName.includes("breedte")) {
+                        props.breedte = String(Math.round(qtyValue * 1000)); // Convert m to mm
+                      } else if (qtyName.includes("height") || qtyName.includes("hoogte")) {
+                        props.hoogte = String(Math.round(qtyValue * 1000)); // Convert m to mm
+                      }
+                    }
+                  } catch (e) {}
+                }
+              }
+            }
+          } catch (e) {}
+        }
+      }
+
+      // Get location from ObjectPlacement
+      if (element?.ObjectPlacement?.value) {
+        try {
+          const placement = ifcApi.GetLine(modelID, element.ObjectPlacement.value, true);
+          
+          if (placement?.RelativePlacement?.value) {
+            const localPlacement = ifcApi.GetLine(modelID, placement.RelativePlacement.value, true);
+            
+            // Get location (IFCCARTESIANPOINT)
+            if (localPlacement?.Location?.value) {
+              const location = ifcApi.GetLine(modelID, localPlacement.Location.value);
+              const coords = location?.Coordinates;
+              if (coords) {
+                const coordValues = Array.isArray(coords) ? coords : [coords];
+                if (coordValues[0]?.value !== undefined) props.projectX = String(Math.round(coordValues[0].value * 1000) / 1000);
+                if (coordValues[1]?.value !== undefined) props.projectY = String(Math.round(coordValues[1].value * 1000) / 1000);
+                if (coordValues[2]?.value !== undefined) props.projectZ = String(Math.round(coordValues[2].value * 1000) / 1000);
+              }
+            }
+            
+            // Get rotation from Axis (Z direction) or RefDirection (X direction)
+            if (localPlacement?.Axis?.value) {
+              const axis = ifcApi.GetLine(modelID, localPlacement.Axis.value);
+              const dirRatios = axis?.DirectionRatios;
+              if (dirRatios) {
+                const ratioValues = Array.isArray(dirRatios) ? dirRatios : [dirRatios];
+                if (ratioValues[0]?.value !== undefined) props.rotatieVectorX = String(Math.round(ratioValues[0].value * 1000) / 1000);
+                if (ratioValues[1]?.value !== undefined) props.rotatieVectorY = String(Math.round(ratioValues[1].value * 1000) / 1000);
+                if (ratioValues[2]?.value !== undefined) props.rotatieVectorZ = String(Math.round(ratioValues[2].value * 1000) / 1000);
+              }
+            } else if (localPlacement?.RefDirection?.value) {
+              const refDir = ifcApi.GetLine(modelID, localPlacement.RefDirection.value);
+              const dirRatios = refDir?.DirectionRatios;
+              if (dirRatios) {
+                const ratioValues = Array.isArray(dirRatios) ? dirRatios : [dirRatios];
+                if (ratioValues[0]?.value !== undefined) props.rotatieVectorX = String(Math.round(ratioValues[0].value * 1000) / 1000);
+                if (ratioValues[1]?.value !== undefined) props.rotatieVectorY = String(Math.round(ratioValues[1].value * 1000) / 1000);
+                if (ratioValues[2]?.value !== undefined) props.rotatieVectorZ = String(Math.round(ratioValues[2].value * 1000) / 1000);
+              }
+            }
+          }
+        } catch (e) {}
+      }
+
+      // Get Bouwlaag from spatial containment
+      if (element?.ContainedInStructure) {
+        const containments = Array.isArray(element.ContainedInStructure) ? element.ContainedInStructure : [element.ContainedInStructure];
+        for (const containment of containments) {
+          if (!containment?.value) continue;
+          try {
+            const relContains = ifcApi.GetLine(modelID, containment.value, true);
+            if (relContains?.RelatingStructure?.value) {
+              const structure = ifcApi.GetLine(modelID, relContains.RelatingStructure.value);
+              if (structure?.Name?.value) {
+                props.bouwlaag = String(structure.Name.value);
+              }
+            }
+          } catch (e) {}
+        }
+      }
+
+    } catch (e) {
+      console.error("Error getting kozijn properties:", e);
+    }
+
+    return props;
+  };
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !ifcApi) return;
@@ -213,6 +377,7 @@ const TifaIFCConversie = () => {
           const element = ifcApi.GetLine(modelID, expressID);
           const name = element?.Name?.value || "Onbekend";
           const key = `${familyName}`;
+          const kozijnProps = getKozijnProperties(ifcApi, modelID, expressID);
           
           if (kozijnMap.has(key)) {
             const existing = kozijnMap.get(key)!;
@@ -226,6 +391,7 @@ const TifaIFCConversie = () => {
               category: "Window",
               count: 1,
               expressIds: [expressID],
+              properties: kozijnProps,
             });
           }
         }
@@ -250,6 +416,7 @@ const TifaIFCConversie = () => {
           const element = ifcApi.GetLine(modelID, expressID);
           const name = element?.Name?.value || "Onbekend";
           const key = `${familyName}`;
+          const kozijnProps = getKozijnProperties(ifcApi, modelID, expressID);
           
           if (kozijnMap.has(key)) {
             const existing = kozijnMap.get(key)!;
@@ -263,6 +430,7 @@ const TifaIFCConversie = () => {
               category: "Door",
               count: 1,
               expressIds: [expressID],
+              properties: kozijnProps,
             });
           }
         }
@@ -435,39 +603,110 @@ const TifaIFCConversie = () => {
       </main>
 
       <Dialog open={!!selectedKozijn} onOpenChange={() => setSelectedKozijn(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl" aria-describedby="kozijn-details-description">
           <DialogHeader>
-            <DialogTitle>Kozijn Details</DialogTitle>
+            <DialogTitle>Kozijn Details - {selectedKozijn?.assemblyCode}</DialogTitle>
           </DialogHeader>
+          <p id="kozijn-details-description" className="sr-only">Details en eigenschappen van het geselecteerde kozijn</p>
           {selectedKozijn && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Assembly Code</p>
-                  <p className="font-medium">{selectedKozijn.assemblyCode}</p>
+            <div className="space-y-6">
+              {/* Basis info */}
+              <div>
+                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Basis Informatie</h4>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">MerkID</p>
+                    <p className="font-medium">{selectedKozijn.assemblyCode}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Categorie</p>
+                    <Badge variant={selectedKozijn.category === "Window" ? "default" : "secondary"}>
+                      {selectedKozijn.category}
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Aantal</p>
+                    <p className="font-medium">{selectedKozijn.count}x</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Categorie</p>
-                  <Badge variant={selectedKozijn.category === "Window" ? "default" : "secondary"}>
-                    {selectedKozijn.category}
-                  </Badge>
+              </div>
+
+              {/* Locatie info */}
+              <div>
+                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Locatie</h4>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Bouwblok</p>
+                    <p className="font-medium">{selectedKozijn.properties.bouwblok || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Bouwdeel</p>
+                    <p className="font-medium">{selectedKozijn.properties.bouwdeel || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Bouwlaag</p>
+                    <p className="font-medium">{selectedKozijn.properties.bouwlaag || "-"}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Naam</p>
-                  <p className="font-medium">{selectedKozijn.name}</p>
+              </div>
+
+              {/* Afmetingen */}
+              <div>
+                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Afmetingen</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Breedte</p>
+                    <p className="font-medium">{selectedKozijn.properties.breedte ? `${selectedKozijn.properties.breedte} mm` : "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Hoogte</p>
+                    <p className="font-medium">{selectedKozijn.properties.hoogte ? `${selectedKozijn.properties.hoogte} mm` : "-"}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Type</p>
-                  <p className="font-medium">{selectedKozijn.type}</p>
+              </div>
+
+              {/* Project Coördinaten */}
+              <div>
+                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Project Coördinaten</h4>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Project X</p>
+                    <p className="font-medium">{selectedKozijn.properties.projectX || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Project Y</p>
+                    <p className="font-medium">{selectedKozijn.properties.projectY || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Project Z</p>
+                    <p className="font-medium">{selectedKozijn.properties.projectZ || "-"}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Aantal</p>
-                  <p className="font-medium">{selectedKozijn.count}</p>
+              </div>
+
+              {/* Rotatie Vector */}
+              <div>
+                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Rotatie Vector</h4>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Rotatie X</p>
+                    <p className="font-medium">{selectedKozijn.properties.rotatieVectorX || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Rotatie Y</p>
+                    <p className="font-medium">{selectedKozijn.properties.rotatieVectorY || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Rotatie Z</p>
+                    <p className="font-medium">{selectedKozijn.properties.rotatieVectorZ || "-"}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Express IDs</p>
-                  <p className="font-medium text-xs">{selectedKozijn.expressIds.slice(0, 5).join(", ")}{selectedKozijn.expressIds.length > 5 ? "..." : ""}</p>
-                </div>
+              </div>
+
+              {/* Express IDs */}
+              <div>
+                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Express IDs</h4>
+                <p className="font-mono text-xs">{selectedKozijn.expressIds.slice(0, 10).join(", ")}{selectedKozijn.expressIds.length > 10 ? "..." : ""}</p>
               </div>
             </div>
           )}
