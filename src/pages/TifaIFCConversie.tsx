@@ -53,39 +53,42 @@ const TifaIFCConversie = () => {
     return "";
   };
 
-  const getAssemblyCode = (ifcApi: WebIFC.IfcAPI, modelID: number, expressID: number): string => {
+  const getFamilyName = (ifcApi: WebIFC.IfcAPI, modelID: number, expressID: number): string => {
     try {
-      // Try to get from property sets
-      const propSets = ifcApi.GetLine(modelID, expressID, true);
+      const element = ifcApi.GetLine(modelID, expressID, true);
       
-      // Check IsDefinedBy for property sets
-      if (propSets?.IsDefinedBy) {
-        const definitions = Array.isArray(propSets.IsDefinedBy) ? propSets.IsDefinedBy : [propSets.IsDefinedBy];
+      // Check IsTypedBy relationship to get the type
+      if (element?.IsTypedBy) {
+        const typedByRefs = Array.isArray(element.IsTypedBy) ? element.IsTypedBy : [element.IsTypedBy];
         
-        for (const def of definitions) {
-          if (!def?.value) continue;
+        for (const typedByRef of typedByRefs) {
+          if (!typedByRef?.value) continue;
           
           try {
-            const defLine = ifcApi.GetLine(modelID, def.value, true);
+            const relDefines = ifcApi.GetLine(modelID, typedByRef.value, true);
             
-            // Check RelatingPropertyDefinition
-            if (defLine?.RelatingPropertyDefinition?.value) {
-              const propDef = ifcApi.GetLine(modelID, defLine.RelatingPropertyDefinition.value, true);
+            if (relDefines?.RelatingType?.value) {
+              const typeElement = ifcApi.GetLine(modelID, relDefines.RelatingType.value, true);
               
-              if (propDef?.HasProperties) {
-                const props = Array.isArray(propDef.HasProperties) ? propDef.HasProperties : [propDef.HasProperties];
+              // Check HasPropertySets for IFCDOORLININGPROPERTIES or IFCWINDOWLININGPROPERTIES
+              if (typeElement?.HasPropertySets) {
+                const propSets = Array.isArray(typeElement.HasPropertySets) ? typeElement.HasPropertySets : [typeElement.HasPropertySets];
                 
-                for (const prop of props) {
-                  if (!prop?.value) continue;
+                for (const propSetRef of propSets) {
+                  if (!propSetRef?.value) continue;
                   
                   try {
-                    const propLine = ifcApi.GetLine(modelID, prop.value);
-                    const propName = propLine?.Name?.value?.toLowerCase() || "";
+                    const propSet = ifcApi.GetLine(modelID, propSetRef.value);
+                    const typeName = propSet?.constructor?.name || "";
                     
-                    if (propName.includes("assembly") || propName.includes("code") || propName.includes("uniformat")) {
-                      const nominalValue = propLine?.NominalValue?.value;
-                      if (nominalValue && String(nominalValue).startsWith("31.")) {
-                        return String(nominalValue);
+                    // Check if it's a lining properties entity
+                    if (typeName.includes("LiningProperties") || typeName.includes("LININGPROPERTIES")) {
+                      // Get the Name or Tag from the lining properties
+                      if (propSet?.Name?.value) {
+                        return String(propSet.Name.value);
+                      }
+                      if (propSet?.Tag?.value) {
+                        return String(propSet.Tag.value);
                       }
                     }
                   } catch (e) {
@@ -93,21 +96,32 @@ const TifaIFCConversie = () => {
                   }
                 }
               }
+              
+              // Fallback: use the type name itself
+              if (typeElement?.Name?.value) {
+                return String(typeElement.Name.value);
+              }
             }
           } catch (e) {
             continue;
           }
         }
       }
-
-      // Fallback: check direct properties
-      const element = ifcApi.GetLine(modelID, expressID);
-      if (element?.Tag?.value && String(element.Tag.value).startsWith("31.")) {
-        return String(element.Tag.value);
+      
+      // Fallback: check direct Name, ObjectType, or Tag
+      const directElement = ifcApi.GetLine(modelID, expressID);
+      if (directElement?.ObjectType?.value) {
+        return String(directElement.ObjectType.value);
+      }
+      if (directElement?.Name?.value) {
+        return String(directElement.Name.value);
+      }
+      if (directElement?.Tag?.value) {
+        return String(directElement.Tag.value);
       }
       
     } catch (e) {
-      // Error getting assembly code
+      console.error("Error getting family name:", e);
     }
     return "";
   };
@@ -192,13 +206,13 @@ const TifaIFCConversie = () => {
           debugLogElement(ifcApi, modelID, expressID, "Window");
         }
         
-        const assemblyCode = getAssemblyCode(ifcApi, modelID, expressID);
+        const familyName = getFamilyName(ifcApi, modelID, expressID);
         
-        // Only include if assembly code starts with 31.
-        if (assemblyCode.startsWith("31.")) {
+        // Include all windows/doors with a family name
+        if (familyName) {
           const element = ifcApi.GetLine(modelID, expressID);
           const name = element?.Name?.value || "Onbekend";
-          const key = `${assemblyCode}-${name}`;
+          const key = `${familyName}`;
           
           if (kozijnMap.has(key)) {
             const existing = kozijnMap.get(key)!;
@@ -206,7 +220,7 @@ const TifaIFCConversie = () => {
             existing.expressIds.push(expressID);
           } else {
             kozijnMap.set(key, {
-              assemblyCode,
+              assemblyCode: familyName,
               name,
               type: element?.ObjectType?.value || element?.PredefinedType?.value || "Window",
               category: "Window",
@@ -229,13 +243,13 @@ const TifaIFCConversie = () => {
           debugLogElement(ifcApi, modelID, expressID, "Door");
         }
         
-        const assemblyCode = getAssemblyCode(ifcApi, modelID, expressID);
+        const familyName = getFamilyName(ifcApi, modelID, expressID);
         
-        // Only include if assembly code starts with 31.
-        if (assemblyCode.startsWith("31.")) {
+        // Include all windows/doors with a family name
+        if (familyName) {
           const element = ifcApi.GetLine(modelID, expressID);
           const name = element?.Name?.value || "Onbekend";
-          const key = `${assemblyCode}-${name}`;
+          const key = `${familyName}`;
           
           if (kozijnMap.has(key)) {
             const existing = kozijnMap.get(key)!;
@@ -243,7 +257,7 @@ const TifaIFCConversie = () => {
             existing.expressIds.push(expressID);
           } else {
             kozijnMap.set(key, {
-              assemblyCode,
+              assemblyCode: familyName,
               name,
               type: element?.ObjectType?.value || element?.PredefinedType?.value || "Door",
               category: "Door",
@@ -265,7 +279,7 @@ const TifaIFCConversie = () => {
       setKozijnen(results);
       
       if (results.length === 0) {
-        toast.warning("Geen kozijnen gevonden met assembly code 31.x");
+        toast.warning("Geen kozijnen gevonden");
       } else {
         toast.success(`${results.length} unieke kozijn types gevonden`);
       }
@@ -305,7 +319,7 @@ const TifaIFCConversie = () => {
             </Link>
             <div>
               <h1 className="text-xl font-bold text-white">IFC Conversie</h1>
-              <p className="text-white/70 text-sm">Unieke kozijnen uit assembly code 31.x</p>
+              <p className="text-white/70 text-sm">Unieke kozijnen uit IFC (windows en doors)</p>
             </div>
           </div>
         </div>
@@ -319,7 +333,7 @@ const TifaIFCConversie = () => {
               IFC Kozijn Analyse
             </CardTitle>
             <CardDescription>
-              Upload een IFC bestand om alle unieke kozijnen te vinden met assembly code 31.x (windows en doors)
+              Upload een IFC bestand om alle unieke kozijnen te vinden (windows en doors via family name/type name)
             </CardDescription>
           </CardHeader>
           <CardContent>
