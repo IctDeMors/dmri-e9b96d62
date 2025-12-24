@@ -229,13 +229,12 @@ const TifaIFCConversie = () => {
       const basicElement = ifcApi.GetLine(modelID, expressID);
       
       // Get dimensions directly from IFCWINDOW/IFCDOOR element (OverallWidth, OverallHeight)
+      // These values are already in mm in this IFC file
       if (basicElement?.OverallWidth?.value !== undefined) {
-        const widthInMeters = basicElement.OverallWidth.value;
-        props.breedte = String(Math.round(widthInMeters * 1000)); // m to mm
+        props.breedte = String(Math.round(basicElement.OverallWidth.value));
       }
       if (basicElement?.OverallHeight?.value !== undefined) {
-        const heightInMeters = basicElement.OverallHeight.value;
-        props.hoogte = String(Math.round(heightInMeters * 1000)); // m to mm
+        props.hoogte = String(Math.round(basicElement.OverallHeight.value));
       }
       
       // Get all properties from property sets
