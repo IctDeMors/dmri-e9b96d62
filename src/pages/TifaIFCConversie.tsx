@@ -29,7 +29,8 @@ interface KozijnProperties {
   rotatieVectorX: string;
   rotatieVectorY: string;
   rotatieVectorZ: string;
-  gevel: string;
+  gevel: string; // genormaliseerde gevel (voorgevel/achtergevel/...)
+  gevelGroep: string; // ruwe groepsnaam uit IFC
 }
 
 interface KozijnInstance {
@@ -238,6 +239,19 @@ const TifaIFCConversie = () => {
     }
   };
 
+  const normalizeGevelLabel = (groupName: string): string => {
+    const raw = (groupName || "").trim();
+    const n = raw.toLowerCase();
+    if (!n) return "";
+
+    if (n.includes("voor")) return "Voorgevel";
+    if (n.includes("achter")) return "Achtergevel";
+    if (n.includes("link") || n.includes("links")) return "Linker zijgevel";
+    if (n.includes("recht") || n.includes("rechts")) return "Rechter zijgevel";
+
+    return "";
+  };
+
   const getFamilyName = (ifcApi: WebIFC.IfcAPI, modelID: number, expressID: number): string => {
     try {
       const element = ifcApi.GetLine(modelID, expressID, true);
@@ -393,6 +407,7 @@ const TifaIFCConversie = () => {
       rotatieVectorY: "",
       rotatieVectorZ: "",
       gevel: "",
+      gevelGroep: "",
     };
 
     try {
@@ -424,7 +439,9 @@ const TifaIFCConversie = () => {
       } catch (e) {}
       
       // Get gevel from wall -> group relationship
-      props.gevel = getGevelFromRelations(ifcApi, modelID, expressID, debugGevel);
+      const gevelGroep = getGevelFromRelations(ifcApi, modelID, expressID, debugGevel);
+      props.gevelGroep = gevelGroep;
+      props.gevel = normalizeGevelLabel(gevelGroep) || gevelGroep;
       
       // Get spatial containment for bouwblok, bouwdeel, bouwlaag
       try {
@@ -796,7 +813,16 @@ const TifaIFCConversie = () => {
                         <TableRow key={instance.expressId}>
                           <TableCell className="font-mono text-xs">{instance.expressId}</TableCell>
                           <TableCell className="text-sm">{instance.name}</TableCell>
-                          <TableCell>{instance.properties.gevel || "-"}</TableCell>
+                          <TableCell>
+                            <div className="min-w-[140px]">
+                              <div>{instance.properties.gevel || "-"}</div>
+                              {instance.properties.gevelGroep && instance.properties.gevelGroep !== instance.properties.gevel && (
+                                <div className="text-xs text-muted-foreground truncate max-w-[260px]" title={instance.properties.gevelGroep}>
+                                  {instance.properties.gevelGroep}
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell>{instance.properties.bouwblok || "-"}</TableCell>
                           <TableCell>{instance.properties.bouwdeel || "-"}</TableCell>
                           <TableCell>{instance.properties.bouwlaag || "-"}</TableCell>
