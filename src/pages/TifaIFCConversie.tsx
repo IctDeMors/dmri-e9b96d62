@@ -29,6 +29,7 @@ interface KozijnProperties {
   rotatieVectorX: string;
   rotatieVectorY: string;
   rotatieVectorZ: string;
+  gevel: string;
 }
 
 interface KozijnInstance {
@@ -84,6 +85,28 @@ const TifaIFCConversie = () => {
       rotY: rotY.toFixed(1),
       rotZ: rotZ.toFixed(1),
     };
+  };
+
+  // Bepaal gevel op basis van rotatie Z (hoek in graden)
+  // 0° of 360° = Voorgevel (Noord), 90° = Rechter zijgevel (Oost)
+  // 180° of -180° = Achtergevel (Zuid), -90° of 270° = Linker zijgevel (West)
+  const determineGevel = (rotZ: string): string => {
+    const angle = parseFloat(rotZ);
+    if (isNaN(angle)) return "-";
+    
+    // Normaliseer hoek naar 0-360
+    let normalizedAngle = ((angle % 360) + 360) % 360;
+    
+    // Bepaal gevel met tolerantie van 45 graden
+    if (normalizedAngle >= 315 || normalizedAngle < 45) {
+      return "Voorgevel";
+    } else if (normalizedAngle >= 45 && normalizedAngle < 135) {
+      return "Rechter zijgevel";
+    } else if (normalizedAngle >= 135 && normalizedAngle < 225) {
+      return "Achtergevel";
+    } else {
+      return "Linker zijgevel";
+    }
   };
 
   const getFamilyName = (ifcApi: WebIFC.IfcAPI, modelID: number, expressID: number): string => {
@@ -240,6 +263,7 @@ const TifaIFCConversie = () => {
       rotatieVectorX: "",
       rotatieVectorY: "",
       rotatieVectorZ: "",
+      gevel: "",
     };
 
     try {
@@ -267,6 +291,7 @@ const TifaIFCConversie = () => {
           props.rotatieVectorX = transformData.rotX;
           props.rotatieVectorY = transformData.rotY;
           props.rotatieVectorZ = transformData.rotZ;
+          props.gevel = determineGevel(transformData.rotZ);
         }
       } catch (e) {}
       
@@ -615,6 +640,7 @@ const TifaIFCConversie = () => {
                       <TableRow>
                         <TableHead className="w-[100px]">Express ID</TableHead>
                         <TableHead>Naam</TableHead>
+                        <TableHead>Gevel</TableHead>
                         <TableHead>Bouwblok</TableHead>
                         <TableHead>Bouwdeel</TableHead>
                         <TableHead>Bouwlaag</TableHead>
@@ -633,6 +659,7 @@ const TifaIFCConversie = () => {
                         <TableRow key={instance.expressId}>
                           <TableCell className="font-mono text-xs">{instance.expressId}</TableCell>
                           <TableCell className="text-sm">{instance.name}</TableCell>
+                          <TableCell>{instance.properties.gevel || "-"}</TableCell>
                           <TableCell>{instance.properties.bouwblok || "-"}</TableCell>
                           <TableCell>{instance.properties.bouwdeel || "-"}</TableCell>
                           <TableCell>{instance.properties.bouwlaag || "-"}</TableCell>
