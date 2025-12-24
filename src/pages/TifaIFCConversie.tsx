@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, FileBox, Upload, Search, X, Loader2, ChevronRight } from "lucide-react";
+import { ArrowLeft, FileBox, Upload, Search, X, Loader2, ChevronRight, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 import * as WebIFC from "web-ifc";
 import {
   Table,
@@ -628,6 +629,87 @@ const TifaIFCConversie = () => {
     }
   };
 
+  // Export alle kozijn instances naar Excel in MxK40 formaat
+  const exportToExcel = () => {
+    if (kozijnen.length === 0) {
+      toast.error("Geen data om te exporteren");
+      return;
+    }
+
+    // Verzamel alle instances van alle kozijnen
+    const allInstances: {
+      Merk: string;
+      Bouwblok: string;
+      Bouwdeel: string;
+      Bouwlaag: string;
+      Gevel: string;
+      Breedte: string;
+      Hoogte: string;
+      "Project X": string;
+      "Project Y": string;
+      "Project Z": string;
+      "Rotatie Vector X": string;
+      "Rotatie Vector Y": string;
+      "Rotatie Vector Z": string;
+    }[] = [];
+
+    kozijnen.forEach((kozijn) => {
+      kozijn.instances.forEach((instance) => {
+        allInstances.push({
+          Merk: kozijn.assemblyCode,
+          Bouwblok: instance.properties.bouwblok || "",
+          Bouwdeel: instance.properties.bouwdeel || "",
+          Bouwlaag: instance.properties.bouwlaag || "",
+          Gevel: instance.properties.gevel || "",
+          Breedte: instance.properties.breedte || "",
+          Hoogte: instance.properties.hoogte || "",
+          "Project X": instance.properties.projectX || "",
+          "Project Y": instance.properties.projectY || "",
+          "Project Z": instance.properties.projectZ || "",
+          "Rotatie Vector X": instance.properties.rotatieVectorX || "",
+          "Rotatie Vector Y": instance.properties.rotatieVectorY || "",
+          "Rotatie Vector Z": instance.properties.rotatieVectorZ || "",
+        });
+      });
+    });
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(allInstances);
+    XLSX.utils.book_append_sheet(wb, ws, "Kozijnen");
+
+    const exportFileName = fileName ? fileName.replace(".ifc", "_export.xlsx") : "kozijnen_export.xlsx";
+    XLSX.writeFile(wb, exportFileName);
+    toast.success(`${allInstances.length} kozijnen geëxporteerd naar Excel`);
+  };
+
+  // Export geselecteerd kozijn naar Excel
+  const exportSelectedToExcel = (kozijn: KozijnData) => {
+    const instances = kozijn.instances.map((instance) => ({
+      Merk: kozijn.assemblyCode,
+      Naam: instance.name,
+      Bouwblok: instance.properties.bouwblok || "",
+      Bouwdeel: instance.properties.bouwdeel || "",
+      Bouwlaag: instance.properties.bouwlaag || "",
+      Gevel: instance.properties.gevel || "",
+      "Gevel Groep": instance.properties.gevelGroep || "",
+      Breedte: instance.properties.breedte || "",
+      Hoogte: instance.properties.hoogte || "",
+      "Project X": instance.properties.projectX || "",
+      "Project Y": instance.properties.projectY || "",
+      "Project Z": instance.properties.projectZ || "",
+      "Rotatie Vector X": instance.properties.rotatieVectorX || "",
+      "Rotatie Vector Y": instance.properties.rotatieVectorY || "",
+      "Rotatie Vector Z": instance.properties.rotatieVectorZ || "",
+    }));
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(instances);
+    XLSX.utils.book_append_sheet(wb, ws, kozijn.assemblyCode.slice(0, 31));
+
+    XLSX.writeFile(wb, `${kozijn.assemblyCode}_export.xlsx`);
+    toast.success(`${instances.length} exemplaren geëxporteerd`);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-emerald-700">
@@ -691,10 +773,16 @@ const TifaIFCConversie = () => {
               )}
               
               {kozijnen.length > 0 && (
-                <Button variant="outline" onClick={clearData}>
-                  <X className="w-4 h-4 mr-2" />
-                  Wissen
-                </Button>
+                <>
+                  <Button variant="outline" onClick={exportToExcel}>
+                    <Download className="w-4 h-4 mr-2" />
+                    Export Excel
+                  </Button>
+                  <Button variant="outline" onClick={clearData}>
+                    <X className="w-4 h-4 mr-2" />
+                    Wissen
+                  </Button>
+                </>
               )}
             </div>
           </CardContent>
@@ -781,11 +869,17 @@ const TifaIFCConversie = () => {
 
           <main className="container mx-auto px-6 py-6">
             <Card>
-              <CardHeader>
-                <CardTitle>Alle Exemplaren</CardTitle>
-                <CardDescription>
-                  Overzicht van alle {selectedKozijn.count} exemplaren met hun eigenschappen
-                </CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Alle Exemplaren</CardTitle>
+                  <CardDescription>
+                    Overzicht van alle {selectedKozijn.count} exemplaren met hun eigenschappen
+                  </CardDescription>
+                </div>
+                <Button variant="outline" onClick={() => exportSelectedToExcel(selectedKozijn)}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Export Excel
+                </Button>
               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-[calc(100vh-280px)]">
