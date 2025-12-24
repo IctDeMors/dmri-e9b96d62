@@ -4,10 +4,18 @@ import { ArrowLeft, FileBox, Upload, Search, X, Loader2, ChevronRight } from "lu
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import * as WebIFC from "web-ifc";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface KozijnProperties {
   bouwblok: string;
@@ -23,6 +31,12 @@ interface KozijnProperties {
   rotatieVectorZ: string;
 }
 
+interface KozijnInstance {
+  expressId: number;
+  name: string;
+  properties: KozijnProperties;
+}
+
 interface KozijnData {
   assemblyCode: string;
   name: string;
@@ -30,6 +44,7 @@ interface KozijnData {
   category: string;
   count: number;
   expressIds: number[];
+  instances: KozijnInstance[];
   properties: KozijnProperties;
 }
 
@@ -428,11 +443,13 @@ const TifaIFCConversie = () => {
           const name = element?.Name?.value || "Onbekend";
           const key = `${familyName}`;
           const kozijnProps = getKozijnProperties(ifcApi, modelID, expressID);
+          const instance: KozijnInstance = { expressId: expressID, name, properties: kozijnProps };
           
           if (kozijnMap.has(key)) {
             const existing = kozijnMap.get(key)!;
             existing.count++;
             existing.expressIds.push(expressID);
+            existing.instances.push(instance);
           } else {
             kozijnMap.set(key, {
               assemblyCode: familyName,
@@ -441,6 +458,7 @@ const TifaIFCConversie = () => {
               category: "Window",
               count: 1,
               expressIds: [expressID],
+              instances: [instance],
               properties: kozijnProps,
             });
           }
@@ -467,11 +485,13 @@ const TifaIFCConversie = () => {
           const name = element?.Name?.value || "Onbekend";
           const key = `${familyName}`;
           const kozijnProps = getKozijnProperties(ifcApi, modelID, expressID);
+          const instance: KozijnInstance = { expressId: expressID, name, properties: kozijnProps };
           
           if (kozijnMap.has(key)) {
             const existing = kozijnMap.get(key)!;
             existing.count++;
             existing.expressIds.push(expressID);
+            existing.instances.push(instance);
           } else {
             kozijnMap.set(key, {
               assemblyCode: familyName,
@@ -480,6 +500,7 @@ const TifaIFCConversie = () => {
               category: "Door",
               count: 1,
               expressIds: [expressID],
+              instances: [instance],
               properties: kozijnProps,
             });
           }
@@ -652,116 +673,84 @@ const TifaIFCConversie = () => {
         )}
       </main>
 
-      <Dialog open={!!selectedKozijn} onOpenChange={() => setSelectedKozijn(null)}>
-        <DialogContent className="max-w-2xl" aria-describedby="kozijn-details-description">
-          <DialogHeader>
-            <DialogTitle>Kozijn Details - {selectedKozijn?.assemblyCode}</DialogTitle>
-          </DialogHeader>
-          <p id="kozijn-details-description" className="sr-only">Details en eigenschappen van het geselecteerde kozijn</p>
-          {selectedKozijn && (
-            <div className="space-y-6">
-              {/* Basis info */}
-              <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Basis Informatie</h4>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground">MerkID</p>
-                    <p className="font-medium">{selectedKozijn.assemblyCode}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Categorie</p>
-                    <Badge variant={selectedKozijn.category === "Window" ? "default" : "secondary"}>
-                      {selectedKozijn.category}
-                    </Badge>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Aantal</p>
-                    <p className="font-medium">{selectedKozijn.count}x</p>
-                  </div>
+      {/* Detail view for selected kozijn */}
+      {selectedKozijn && (
+        <div className="fixed inset-0 z-50 bg-background">
+          <header className="border-b border-border bg-emerald-700">
+            <div className="container mx-auto px-6 py-4">
+              <div className="flex items-center gap-3">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="text-white hover:bg-white/10 -ml-2"
+                  onClick={() => setSelectedKozijn(null)}
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </Button>
+                <div>
+                  <h1 className="text-xl font-bold text-white">{selectedKozijn.assemblyCode}</h1>
+                  <p className="text-white/70 text-sm">
+                    {selectedKozijn.category} • {selectedKozijn.count} exemplaren
+                  </p>
                 </div>
-              </div>
-
-              {/* Locatie info */}
-              <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Locatie</h4>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Bouwblok</p>
-                    <p className="font-medium">{selectedKozijn.properties.bouwblok || "-"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Bouwdeel</p>
-                    <p className="font-medium">{selectedKozijn.properties.bouwdeel || "-"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Bouwlaag</p>
-                    <p className="font-medium">{selectedKozijn.properties.bouwlaag || "-"}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Afmetingen */}
-              <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Afmetingen</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Breedte</p>
-                    <p className="font-medium">{selectedKozijn.properties.breedte ? `${selectedKozijn.properties.breedte} mm` : "-"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Hoogte</p>
-                    <p className="font-medium">{selectedKozijn.properties.hoogte ? `${selectedKozijn.properties.hoogte} mm` : "-"}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Project Coördinaten */}
-              <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Project Coördinaten</h4>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Project X</p>
-                    <p className="font-medium">{selectedKozijn.properties.projectX || "-"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Project Y</p>
-                    <p className="font-medium">{selectedKozijn.properties.projectY || "-"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Project Z</p>
-                    <p className="font-medium">{selectedKozijn.properties.projectZ || "-"}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Rotatie Vector */}
-              <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Rotatie Vector</h4>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Rotatie X</p>
-                    <p className="font-medium">{selectedKozijn.properties.rotatieVectorX || "-"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Rotatie Y</p>
-                    <p className="font-medium">{selectedKozijn.properties.rotatieVectorY || "-"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Rotatie Z</p>
-                    <p className="font-medium">{selectedKozijn.properties.rotatieVectorZ || "-"}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Express IDs */}
-              <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-2">Express IDs</h4>
-                <p className="font-mono text-xs">{selectedKozijn.expressIds.slice(0, 10).join(", ")}{selectedKozijn.expressIds.length > 10 ? "..." : ""}</p>
               </div>
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
+          </header>
+
+          <main className="container mx-auto px-6 py-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Alle Exemplaren</CardTitle>
+                <CardDescription>
+                  Overzicht van alle {selectedKozijn.count} exemplaren met hun eigenschappen
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[calc(100vh-280px)]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[100px]">Express ID</TableHead>
+                        <TableHead>Naam</TableHead>
+                        <TableHead>Bouwblok</TableHead>
+                        <TableHead>Bouwdeel</TableHead>
+                        <TableHead>Bouwlaag</TableHead>
+                        <TableHead className="text-right">Breedte (mm)</TableHead>
+                        <TableHead className="text-right">Hoogte (mm)</TableHead>
+                        <TableHead className="text-right">Project X</TableHead>
+                        <TableHead className="text-right">Project Y</TableHead>
+                        <TableHead className="text-right">Project Z</TableHead>
+                        <TableHead className="text-right">Rot. X</TableHead>
+                        <TableHead className="text-right">Rot. Y</TableHead>
+                        <TableHead className="text-right">Rot. Z</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {selectedKozijn.instances.map((instance) => (
+                        <TableRow key={instance.expressId}>
+                          <TableCell className="font-mono text-xs">{instance.expressId}</TableCell>
+                          <TableCell className="text-sm">{instance.name}</TableCell>
+                          <TableCell>{instance.properties.bouwblok || "-"}</TableCell>
+                          <TableCell>{instance.properties.bouwdeel || "-"}</TableCell>
+                          <TableCell>{instance.properties.bouwlaag || "-"}</TableCell>
+                          <TableCell className="text-right font-mono">{instance.properties.breedte || "-"}</TableCell>
+                          <TableCell className="text-right font-mono">{instance.properties.hoogte || "-"}</TableCell>
+                          <TableCell className="text-right font-mono text-xs">{instance.properties.projectX || "-"}</TableCell>
+                          <TableCell className="text-right font-mono text-xs">{instance.properties.projectY || "-"}</TableCell>
+                          <TableCell className="text-right font-mono text-xs">{instance.properties.projectZ || "-"}</TableCell>
+                          <TableCell className="text-right font-mono text-xs">{instance.properties.rotatieVectorX || "-"}</TableCell>
+                          <TableCell className="text-right font-mono text-xs">{instance.properties.rotatieVectorY || "-"}</TableCell>
+                          <TableCell className="text-right font-mono text-xs">{instance.properties.rotatieVectorZ || "-"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </main>
+        </div>
+      )}
     </div>
   );
 };
