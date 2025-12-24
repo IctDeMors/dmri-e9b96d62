@@ -87,53 +87,10 @@ const TifaIFCConversie = () => {
     };
   };
 
-  // Haal de gevel op via de relatie: Window/Door -> FillsVoids -> Opening -> VoidsElement -> Wall -> AssignedToGroup -> Group
+  // Haal de gevel op via meerdere mogelijke relaties
   const getGevelFromRelations = (ifcApi: WebIFC.IfcAPI, modelID: number, expressID: number, debugFirst: boolean = false): string => {
     try {
-      // Stap 1: Zoek de opening waar dit kozijn in zit via IFCRELFILLSELEMENT
-      const relFillsIds = ifcApi.GetLineIDsWithType(modelID, WebIFC.IFCRELFILLSELEMENT);
-      let openingId: number | null = null;
-      
-      for (let i = 0; i < relFillsIds.size(); i++) {
-        const relId = relFillsIds.get(i);
-        const rel = ifcApi.GetLine(modelID, relId);
-        
-        if (rel.RelatedBuildingElement?.value === expressID) {
-          openingId = rel.RelatingOpeningElement?.value;
-          if (debugFirst) console.log("Stap 1 - Opening gevonden:", openingId);
-          break;
-        }
-      }
-      
-      if (!openingId) {
-        if (debugFirst) console.log("Geen opening gevonden voor expressID:", expressID);
-        return "";
-      }
-      
-      // Stap 2: Zoek de muur via IFCRELVOIDSELEMENT
-      const relVoidsIds = ifcApi.GetLineIDsWithType(modelID, WebIFC.IFCRELVOIDSELEMENT);
-      let wallId: number | null = null;
-      
-      for (let i = 0; i < relVoidsIds.size(); i++) {
-        const relId = relVoidsIds.get(i);
-        const rel = ifcApi.GetLine(modelID, relId);
-        
-        if (rel.RelatedOpeningElement?.value === openingId) {
-          wallId = rel.RelatingBuildingElement?.value;
-          if (debugFirst) {
-            const wall = ifcApi.GetLine(modelID, wallId);
-            console.log("Stap 2 - Wall gevonden:", wallId, "Name:", wall?.Name?.value);
-          }
-          break;
-        }
-      }
-      
-      if (!wallId) {
-        if (debugFirst) console.log("Geen wall gevonden voor opening:", openingId);
-        return "";
-      }
-      
-      // Stap 3: Zoek de groep waar de muur bij hoort via IFCRELASSIGNSTOGROUP
+      // Methode 1: Direct via IFCRELASSIGNSTOGROUP op het kozijn zelf
       const relAssignsIds = ifcApi.GetLineIDsWithType(modelID, WebIFC.IFCRELASSIGNSTOGROUP);
       
       if (debugFirst) console.log("Aantal IFCRELASSIGNSTOGROUP relaties:", relAssignsIds.size());
@@ -146,13 +103,12 @@ const TifaIFCConversie = () => {
           const relatedObjects = Array.isArray(rel.RelatedObjects) ? rel.RelatedObjects : [rel.RelatedObjects];
           
           for (const obj of relatedObjects) {
-            if (obj?.value === wallId) {
-              // Gevonden! Haal de groep naam op
+            if (obj?.value === expressID) {
               const groupId = rel.RelatingGroup?.value;
               if (groupId) {
                 const group = ifcApi.GetLine(modelID, groupId);
                 const groupName = group.Name?.value || group.Description?.value || "";
-                if (debugFirst) console.log("Stap 3 - Groep gevonden:", groupId, "Name:", groupName);
+                if (debugFirst) console.log("Methode 1 - Direct groep gevonden:", groupName);
                 return String(groupName);
               }
             }
@@ -160,7 +116,121 @@ const TifaIFCConversie = () => {
         }
       }
       
-      if (debugFirst) console.log("Geen groep gevonden voor wall:", wallId);
+      if (debugFirst) console.log("Methode 1 - Geen directe groep gevonden, probeer via wall...");
+      
+      // Methode 2: Via IFCRELFILLSELEMENT -> Opening -> IFCRELVOIDSELEMENT -> Wall -> Group
+      const relFillsIds = ifcApi.GetLineIDsWithType(modelID, WebIFC.IFCRELFILLSELEMENT);
+      let openingId: number | null = null;
+      
+      for (let i = 0; i < relFillsIds.size(); i++) {
+        const relId = relFillsIds.get(i);
+        const rel = ifcApi.GetLine(modelID, relId);
+        
+        if (rel.RelatedBuildingElement?.value === expressID) {
+          openingId = rel.RelatingOpeningElement?.value;
+          if (debugFirst) console.log("Methode 2 - Opening gevonden:", openingId);
+          break;
+        }
+      }
+      
+      if (openingId) {
+        const relVoidsIds = ifcApi.GetLineIDsWithType(modelID, WebIFC.IFCRELVOIDSELEMENT);
+        let wallId: number | null = null;
+        
+        for (let i = 0; i < relVoidsIds.size(); i++) {
+          const relId = relVoidsIds.get(i);
+          const rel = ifcApi.GetLine(modelID, relId);
+          
+          if (rel.RelatedOpeningElement?.value === openingId) {
+            wallId = rel.RelatingBuildingElement?.value;
+            if (debugFirst) {
+              const wall = ifcApi.GetLine(modelID, wallId);
+              console.log("Methode 2 - Wall gevonden:", wallId, "Name:", wall?.Name?.value);
+            }
+            break;
+          }
+        }
+        
+        if (wallId) {
+          for (let i = 0; i < relAssignsIds.size(); i++) {
+            const relId = relAssignsIds.get(i);
+            const rel = ifcApi.GetLine(modelID, relId);
+            
+            if (rel.RelatedObjects) {
+              const relatedObjects = Array.isArray(rel.RelatedObjects) ? rel.RelatedObjects : [rel.RelatedObjects];
+              
+              for (const obj of relatedObjects) {
+                if (obj?.value === wallId) {
+                  const groupId = rel.RelatingGroup?.value;
+                  if (groupId) {
+                    const group = ifcApi.GetLine(modelID, groupId);
+                    const groupName = group.Name?.value || group.Description?.value || "";
+                    if (debugFirst) console.log("Methode 2 - Wall groep gevonden:", groupName);
+                    return String(groupName);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      if (debugFirst) console.log("Methode 2 - Geen groep via wall gevonden, probeer via ContainedInStructure...");
+      
+      // Methode 3: Zoek naar welke wall dit element bevat via spatial structure
+      // Sommige IFC files hebben het kozijn direct in de spatial structure
+      const element = ifcApi.GetLine(modelID, expressID, true);
+      
+      // Check if element has a direct reference to a host (wall)
+      if (element?.FillsVoids) {
+        const fillsVoids = Array.isArray(element.FillsVoids) ? element.FillsVoids : [element.FillsVoids];
+        for (const fv of fillsVoids) {
+          if (fv?.value) {
+            try {
+              const relFills = ifcApi.GetLine(modelID, fv.value);
+              if (relFills?.RelatingOpeningElement?.value) {
+                const opening = ifcApi.GetLine(modelID, relFills.RelatingOpeningElement.value, true);
+                if (opening?.VoidsElements) {
+                  const voidsElements = Array.isArray(opening.VoidsElements) ? opening.VoidsElements : [opening.VoidsElements];
+                  for (const ve of voidsElements) {
+                    if (ve?.value) {
+                      const relVoids = ifcApi.GetLine(modelID, ve.value);
+                      if (relVoids?.RelatingBuildingElement?.value) {
+                        const wallId = relVoids.RelatingBuildingElement.value;
+                        const wall = ifcApi.GetLine(modelID, wallId);
+                        if (debugFirst) console.log("Methode 3 - Wall via FillsVoids:", wallId, wall?.Name?.value);
+                        
+                        // Now find group for this wall
+                        for (let i = 0; i < relAssignsIds.size(); i++) {
+                          const relId = relAssignsIds.get(i);
+                          const rel = ifcApi.GetLine(modelID, relId);
+                          
+                          if (rel.RelatedObjects) {
+                            const relatedObjects = Array.isArray(rel.RelatedObjects) ? rel.RelatedObjects : [rel.RelatedObjects];
+                            for (const obj of relatedObjects) {
+                              if (obj?.value === wallId) {
+                                const groupId = rel.RelatingGroup?.value;
+                                if (groupId) {
+                                  const group = ifcApi.GetLine(modelID, groupId);
+                                  const groupName = group.Name?.value || group.Description?.value || "";
+                                  if (debugFirst) console.log("Methode 3 - Groep gevonden:", groupName);
+                                  return String(groupName);
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            } catch (e) {}
+          }
+        }
+      }
+      
+      if (debugFirst) console.log("Geen gevel groep gevonden via alle methodes");
       return "";
     } catch (e) {
       console.error("Error getting gevel from relations:", e);
