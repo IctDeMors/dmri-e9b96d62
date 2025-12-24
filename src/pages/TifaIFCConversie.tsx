@@ -87,25 +87,70 @@ const TifaIFCConversie = () => {
     };
   };
 
-  // Bepaal gevel op basis van rotatie Z (hoek in graden)
-  // 0° of 360° = Voorgevel (Noord), 90° = Rechter zijgevel (Oost)
-  // 180° of -180° = Achtergevel (Zuid), -90° of 270° = Linker zijgevel (West)
-  const determineGevel = (rotZ: string): string => {
-    const angle = parseFloat(rotZ);
-    if (isNaN(angle)) return "-";
-    
-    // Normaliseer hoek naar 0-360
-    let normalizedAngle = ((angle % 360) + 360) % 360;
-    
-    // Bepaal gevel met tolerantie van 45 graden
-    if (normalizedAngle >= 315 || normalizedAngle < 45) {
-      return "Voorgevel";
-    } else if (normalizedAngle >= 45 && normalizedAngle < 135) {
-      return "Rechter zijgevel";
-    } else if (normalizedAngle >= 135 && normalizedAngle < 225) {
-      return "Achtergevel";
-    } else {
-      return "Linker zijgevel";
+  // Haal de gevel op via de relatie: Window/Door -> FillsVoids -> Opening -> VoidsElement -> Wall -> AssignedToGroup -> Group
+  const getGevelFromRelations = (ifcApi: WebIFC.IfcAPI, modelID: number, expressID: number): string => {
+    try {
+      // Stap 1: Zoek de muur waar dit kozijn in zit via IFCRELFILLSELEMENT
+      // Window/Door FillsVoids een Opening, Opening VoidsElement een Wall
+      const relFillsIds = ifcApi.GetLineIDsWithType(modelID, WebIFC.IFCRELFILLSELEMENT);
+      let openingId: number | null = null;
+      
+      for (let i = 0; i < relFillsIds.size(); i++) {
+        const relId = relFillsIds.get(i);
+        const rel = ifcApi.GetLine(modelID, relId);
+        
+        if (rel.RelatedBuildingElement?.value === expressID) {
+          openingId = rel.RelatingOpeningElement?.value;
+          break;
+        }
+      }
+      
+      if (!openingId) return "";
+      
+      // Stap 2: Zoek de muur via IFCRELVOIDSELEMENT
+      const relVoidsIds = ifcApi.GetLineIDsWithType(modelID, WebIFC.IFCRELVOIDSELEMENT);
+      let wallId: number | null = null;
+      
+      for (let i = 0; i < relVoidsIds.size(); i++) {
+        const relId = relVoidsIds.get(i);
+        const rel = ifcApi.GetLine(modelID, relId);
+        
+        if (rel.RelatedOpeningElement?.value === openingId) {
+          wallId = rel.RelatingBuildingElement?.value;
+          break;
+        }
+      }
+      
+      if (!wallId) return "";
+      
+      // Stap 3: Zoek de groep waar de muur bij hoort via IFCRELASSIGNSTOGROUP
+      const relAssignsIds = ifcApi.GetLineIDsWithType(modelID, WebIFC.IFCRELASSIGNSTOGROUP);
+      
+      for (let i = 0; i < relAssignsIds.size(); i++) {
+        const relId = relAssignsIds.get(i);
+        const rel = ifcApi.GetLine(modelID, relId);
+        
+        if (rel.RelatedObjects) {
+          const relatedObjects = Array.isArray(rel.RelatedObjects) ? rel.RelatedObjects : [rel.RelatedObjects];
+          
+          for (const obj of relatedObjects) {
+            if (obj?.value === wallId) {
+              // Gevonden! Haal de groep naam op
+              const groupId = rel.RelatingGroup?.value;
+              if (groupId) {
+                const group = ifcApi.GetLine(modelID, groupId);
+                const groupName = group.Name?.value || group.Description?.value || "";
+                return String(groupName);
+              }
+            }
+          }
+        }
+      }
+      
+      return "";
+    } catch (e) {
+      console.error("Error getting gevel from relations:", e);
+      return "";
     }
   };
 
@@ -291,9 +336,11 @@ const TifaIFCConversie = () => {
           props.rotatieVectorX = transformData.rotX;
           props.rotatieVectorY = transformData.rotY;
           props.rotatieVectorZ = transformData.rotZ;
-          props.gevel = determineGevel(transformData.rotZ);
         }
       } catch (e) {}
+      
+      // Get gevel from wall -> group relationship
+      props.gevel = getGevelFromRelations(ifcApi, modelID, expressID);
       
       // Get spatial containment for bouwblok, bouwdeel, bouwlaag
       try {
