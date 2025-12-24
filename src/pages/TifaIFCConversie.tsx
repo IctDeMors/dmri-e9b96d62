@@ -153,6 +153,9 @@ const TifaIFCConversie = () => {
         ObjectType: element?.ObjectType?.value,
         Tag: element?.Tag?.value,
         PredefinedType: element?.PredefinedType?.value,
+        // Direct element dimensions (standard IFC)
+        OverallWidth: element?.OverallWidth?.value,
+        OverallHeight: element?.OverallHeight?.value,
       };
       
       // Collect all property values
@@ -177,6 +180,20 @@ const TifaIFCConversie = () => {
                     const propName = propLine?.Name?.value || "";
                     const propValue = propLine?.NominalValue?.value;
                     allProps[`${propSetName}.${propName}`] = propValue;
+                  } catch (e) {}
+                }
+              }
+              
+              // Also log quantities
+              if (propDef?.Quantities) {
+                const quantities = Array.isArray(propDef.Quantities) ? propDef.Quantities : [propDef.Quantities];
+                for (const qty of quantities) {
+                  if (!qty?.value) continue;
+                  try {
+                    const qtyLine = ifcApi.GetLine(modelID, qty.value);
+                    const qtyName = qtyLine?.Name?.value || "";
+                    const qtyValue = qtyLine?.LengthValue?.value || qtyLine?.AreaValue?.value || qtyLine?.VolumeValue?.value;
+                    allProps[`QTO.${qtyName}`] = qtyValue;
                   } catch (e) {}
                 }
               }
@@ -209,6 +226,17 @@ const TifaIFCConversie = () => {
 
     try {
       const element = ifcApi.GetLine(modelID, expressID, true);
+      const basicElement = ifcApi.GetLine(modelID, expressID);
+      
+      // Get dimensions directly from IFCWINDOW/IFCDOOR element (OverallWidth, OverallHeight)
+      if (basicElement?.OverallWidth?.value !== undefined) {
+        const widthInMeters = basicElement.OverallWidth.value;
+        props.breedte = String(Math.round(widthInMeters * 1000)); // m to mm
+      }
+      if (basicElement?.OverallHeight?.value !== undefined) {
+        const heightInMeters = basicElement.OverallHeight.value;
+        props.hoogte = String(Math.round(heightInMeters * 1000)); // m to mm
+      }
       
       // Get all properties from property sets
       if (element?.IsDefinedBy) {
@@ -232,16 +260,20 @@ const TifaIFCConversie = () => {
                     
                     if (propValue !== undefined) {
                       // Map property names to our fields
-                      if (propName.includes("bouwblok") || propName === "building block") {
+                      if (propName.includes("bouwblok") || propName === "building block" || propName === "block") {
                         props.bouwblok = String(propValue);
-                      } else if (propName.includes("bouwdeel") || propName === "building part") {
+                      } else if (propName.includes("bouwdeel") || propName === "building part" || propName === "section") {
                         props.bouwdeel = String(propValue);
-                      } else if (propName.includes("bouwlaag") || propName.includes("storey") || propName.includes("floor") || propName.includes("level")) {
+                      } else if (propName.includes("bouwlaag") || propName.includes("storey") || propName.includes("floor") || propName.includes("level") || propName.includes("etage")) {
                         props.bouwlaag = String(propValue);
-                      } else if (propName.includes("breedte") || propName.includes("width") || propName === "overall width") {
-                        props.breedte = String(propValue);
-                      } else if (propName.includes("hoogte") || propName.includes("height") || propName === "overall height") {
-                        props.hoogte = String(propValue);
+                      } else if (!props.breedte && (propName.includes("breedte") || propName.includes("width") || propName === "overall width")) {
+                        // Only use if not already set from direct element
+                        const val = typeof propValue === 'number' && propValue < 10 ? Math.round(propValue * 1000) : propValue;
+                        props.breedte = String(val);
+                      } else if (!props.hoogte && (propName.includes("hoogte") || propName.includes("height") || propName === "overall height")) {
+                        // Only use if not already set from direct element
+                        const val = typeof propValue === 'number' && propValue < 10 ? Math.round(propValue * 1000) : propValue;
+                        props.hoogte = String(val);
                       }
                     }
                   } catch (e) {}
@@ -259,9 +291,9 @@ const TifaIFCConversie = () => {
                     const qtyValue = qtyLine?.LengthValue?.value || qtyLine?.AreaValue?.value || qtyLine?.VolumeValue?.value;
                     
                     if (qtyValue !== undefined) {
-                      if (qtyName.includes("width") || qtyName.includes("breedte")) {
+                      if (!props.breedte && (qtyName.includes("width") || qtyName.includes("breedte"))) {
                         props.breedte = String(Math.round(qtyValue * 1000)); // Convert m to mm
-                      } else if (qtyName.includes("height") || qtyName.includes("hoogte")) {
+                      } else if (!props.hoogte && (qtyName.includes("height") || qtyName.includes("hoogte"))) {
                         props.hoogte = String(Math.round(qtyValue * 1000)); // Convert m to mm
                       }
                     }
@@ -273,47 +305,66 @@ const TifaIFCConversie = () => {
         }
       }
 
-      // Get location from ObjectPlacement
+      // Get location from ObjectPlacement - traverse up the hierarchy to get absolute position
       if (element?.ObjectPlacement?.value) {
         try {
-          const placement = ifcApi.GetLine(modelID, element.ObjectPlacement.value, true);
+          let totalX = 0, totalY = 0, totalZ = 0;
+          let rotX = 0, rotY = 0, rotZ = 1; // Default Z-up
           
-          if (placement?.RelativePlacement?.value) {
-            const localPlacement = ifcApi.GetLine(modelID, placement.RelativePlacement.value, true);
+          const traversePlacement = (placementRef: number) => {
+            const placement = ifcApi.GetLine(modelID, placementRef, true);
             
-            // Get location (IFCCARTESIANPOINT)
-            if (localPlacement?.Location?.value) {
-              const location = ifcApi.GetLine(modelID, localPlacement.Location.value);
-              const coords = location?.Coordinates;
-              if (coords) {
-                const coordValues = Array.isArray(coords) ? coords : [coords];
-                if (coordValues[0]?.value !== undefined) props.projectX = String(Math.round(coordValues[0].value * 1000) / 1000);
-                if (coordValues[1]?.value !== undefined) props.projectY = String(Math.round(coordValues[1].value * 1000) / 1000);
-                if (coordValues[2]?.value !== undefined) props.projectZ = String(Math.round(coordValues[2].value * 1000) / 1000);
+            if (placement?.RelativePlacement?.value) {
+              const localPlacement = ifcApi.GetLine(modelID, placement.RelativePlacement.value, true);
+              
+              // Get location (IFCCARTESIANPOINT)
+              if (localPlacement?.Location?.value) {
+                const location = ifcApi.GetLine(modelID, localPlacement.Location.value);
+                const coords = location?.Coordinates;
+                if (coords) {
+                  const coordValues = Array.isArray(coords) ? coords : [coords];
+                  if (coordValues[0]?.value !== undefined) totalX += coordValues[0].value;
+                  if (coordValues[1]?.value !== undefined) totalY += coordValues[1].value;
+                  if (coordValues[2]?.value !== undefined) totalZ += coordValues[2].value;
+                }
+              }
+              
+              // Get rotation from Axis (Z direction) or RefDirection (X direction)
+              if (localPlacement?.Axis?.value) {
+                const axis = ifcApi.GetLine(modelID, localPlacement.Axis.value);
+                const dirRatios = axis?.DirectionRatios;
+                if (dirRatios) {
+                  const ratioValues = Array.isArray(dirRatios) ? dirRatios : [dirRatios];
+                  if (ratioValues[0]?.value !== undefined) rotX = ratioValues[0].value;
+                  if (ratioValues[1]?.value !== undefined) rotY = ratioValues[1].value;
+                  if (ratioValues[2]?.value !== undefined) rotZ = ratioValues[2].value;
+                }
+              } else if (localPlacement?.RefDirection?.value) {
+                const refDir = ifcApi.GetLine(modelID, localPlacement.RefDirection.value);
+                const dirRatios = refDir?.DirectionRatios;
+                if (dirRatios) {
+                  const ratioValues = Array.isArray(dirRatios) ? dirRatios : [dirRatios];
+                  if (ratioValues[0]?.value !== undefined) rotX = ratioValues[0].value;
+                  if (ratioValues[1]?.value !== undefined) rotY = ratioValues[1].value;
+                  if (ratioValues[2]?.value !== undefined) rotZ = ratioValues[2].value;
+                }
               }
             }
             
-            // Get rotation from Axis (Z direction) or RefDirection (X direction)
-            if (localPlacement?.Axis?.value) {
-              const axis = ifcApi.GetLine(modelID, localPlacement.Axis.value);
-              const dirRatios = axis?.DirectionRatios;
-              if (dirRatios) {
-                const ratioValues = Array.isArray(dirRatios) ? dirRatios : [dirRatios];
-                if (ratioValues[0]?.value !== undefined) props.rotatieVectorX = String(Math.round(ratioValues[0].value * 1000) / 1000);
-                if (ratioValues[1]?.value !== undefined) props.rotatieVectorY = String(Math.round(ratioValues[1].value * 1000) / 1000);
-                if (ratioValues[2]?.value !== undefined) props.rotatieVectorZ = String(Math.round(ratioValues[2].value * 1000) / 1000);
-              }
-            } else if (localPlacement?.RefDirection?.value) {
-              const refDir = ifcApi.GetLine(modelID, localPlacement.RefDirection.value);
-              const dirRatios = refDir?.DirectionRatios;
-              if (dirRatios) {
-                const ratioValues = Array.isArray(dirRatios) ? dirRatios : [dirRatios];
-                if (ratioValues[0]?.value !== undefined) props.rotatieVectorX = String(Math.round(ratioValues[0].value * 1000) / 1000);
-                if (ratioValues[1]?.value !== undefined) props.rotatieVectorY = String(Math.round(ratioValues[1].value * 1000) / 1000);
-                if (ratioValues[2]?.value !== undefined) props.rotatieVectorZ = String(Math.round(ratioValues[2].value * 1000) / 1000);
-              }
+            // Traverse up the hierarchy
+            if (placement?.PlacementRelTo?.value) {
+              traversePlacement(placement.PlacementRelTo.value);
             }
-          }
+          };
+          
+          traversePlacement(element.ObjectPlacement.value);
+          
+          props.projectX = String(Math.round(totalX * 1000) / 1000);
+          props.projectY = String(Math.round(totalY * 1000) / 1000);
+          props.projectZ = String(Math.round(totalZ * 1000) / 1000);
+          props.rotatieVectorX = String(Math.round(rotX * 1000) / 1000);
+          props.rotatieVectorY = String(Math.round(rotY * 1000) / 1000);
+          props.rotatieVectorZ = String(Math.round(rotZ * 1000) / 1000);
         } catch (e) {}
       }
 
