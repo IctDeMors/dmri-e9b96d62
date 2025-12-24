@@ -112,6 +112,57 @@ const TifaIFCConversie = () => {
     return "";
   };
 
+  const debugLogElement = (ifcApi: WebIFC.IfcAPI, modelID: number, expressID: number, category: string) => {
+    try {
+      const element = ifcApi.GetLine(modelID, expressID);
+      const propSets = ifcApi.GetLine(modelID, expressID, true);
+      
+      const debugInfo: Record<string, any> = {
+        expressID,
+        category,
+        Name: element?.Name?.value,
+        ObjectType: element?.ObjectType?.value,
+        Tag: element?.Tag?.value,
+        PredefinedType: element?.PredefinedType?.value,
+      };
+      
+      // Collect all property values
+      if (propSets?.IsDefinedBy) {
+        const definitions = Array.isArray(propSets.IsDefinedBy) ? propSets.IsDefinedBy : [propSets.IsDefinedBy];
+        const allProps: Record<string, any> = {};
+        
+        for (const def of definitions) {
+          if (!def?.value) continue;
+          try {
+            const defLine = ifcApi.GetLine(modelID, def.value, true);
+            if (defLine?.RelatingPropertyDefinition?.value) {
+              const propDef = ifcApi.GetLine(modelID, defLine.RelatingPropertyDefinition.value, true);
+              const propSetName = propDef?.Name?.value || "unknown";
+              
+              if (propDef?.HasProperties) {
+                const props = Array.isArray(propDef.HasProperties) ? propDef.HasProperties : [propDef.HasProperties];
+                for (const prop of props) {
+                  if (!prop?.value) continue;
+                  try {
+                    const propLine = ifcApi.GetLine(modelID, prop.value);
+                    const propName = propLine?.Name?.value || "";
+                    const propValue = propLine?.NominalValue?.value;
+                    allProps[`${propSetName}.${propName}`] = propValue;
+                  } catch (e) {}
+                }
+              }
+            }
+          } catch (e) {}
+        }
+        debugInfo.properties = allProps;
+      }
+      
+      console.log("IFC Element Debug:", debugInfo);
+    } catch (e) {
+      console.error("Debug error:", e);
+    }
+  };
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !ifcApi) return;
@@ -127,10 +178,20 @@ const TifaIFCConversie = () => {
       
       const kozijnMap = new Map<string, KozijnData>();
       
+      console.log("=== START IFC DEBUG ===");
+      
       // Process Windows (IFCWINDOW = 3304561284)
       const windowIds = ifcApi.GetLineIDsWithType(modelID, 3304561284);
+      console.log(`Found ${windowIds.size()} windows`);
+      
       for (let i = 0; i < windowIds.size(); i++) {
         const expressID = windowIds.get(i);
+        
+        // Debug first 5 windows
+        if (i < 5) {
+          debugLogElement(ifcApi, modelID, expressID, "Window");
+        }
+        
         const assemblyCode = getAssemblyCode(ifcApi, modelID, expressID);
         
         // Only include if assembly code starts with 31.
@@ -158,8 +219,16 @@ const TifaIFCConversie = () => {
       
       // Process Doors (IFCDOOR = 395920057)
       const doorIds = ifcApi.GetLineIDsWithType(modelID, 395920057);
+      console.log(`Found ${doorIds.size()} doors`);
+      
       for (let i = 0; i < doorIds.size(); i++) {
         const expressID = doorIds.get(i);
+        
+        // Debug first 5 doors
+        if (i < 5) {
+          debugLogElement(ifcApi, modelID, expressID, "Door");
+        }
+        
         const assemblyCode = getAssemblyCode(ifcApi, modelID, expressID);
         
         // Only include if assembly code starts with 31.
@@ -184,6 +253,8 @@ const TifaIFCConversie = () => {
           }
         }
       }
+      
+      console.log("=== END IFC DEBUG ===");
       
       ifcApi.CloseModel(modelID);
       
