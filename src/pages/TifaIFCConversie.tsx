@@ -88,10 +88,9 @@ const TifaIFCConversie = () => {
   };
 
   // Haal de gevel op via de relatie: Window/Door -> FillsVoids -> Opening -> VoidsElement -> Wall -> AssignedToGroup -> Group
-  const getGevelFromRelations = (ifcApi: WebIFC.IfcAPI, modelID: number, expressID: number): string => {
+  const getGevelFromRelations = (ifcApi: WebIFC.IfcAPI, modelID: number, expressID: number, debugFirst: boolean = false): string => {
     try {
-      // Stap 1: Zoek de muur waar dit kozijn in zit via IFCRELFILLSELEMENT
-      // Window/Door FillsVoids een Opening, Opening VoidsElement een Wall
+      // Stap 1: Zoek de opening waar dit kozijn in zit via IFCRELFILLSELEMENT
       const relFillsIds = ifcApi.GetLineIDsWithType(modelID, WebIFC.IFCRELFILLSELEMENT);
       let openingId: number | null = null;
       
@@ -101,11 +100,15 @@ const TifaIFCConversie = () => {
         
         if (rel.RelatedBuildingElement?.value === expressID) {
           openingId = rel.RelatingOpeningElement?.value;
+          if (debugFirst) console.log("Stap 1 - Opening gevonden:", openingId);
           break;
         }
       }
       
-      if (!openingId) return "";
+      if (!openingId) {
+        if (debugFirst) console.log("Geen opening gevonden voor expressID:", expressID);
+        return "";
+      }
       
       // Stap 2: Zoek de muur via IFCRELVOIDSELEMENT
       const relVoidsIds = ifcApi.GetLineIDsWithType(modelID, WebIFC.IFCRELVOIDSELEMENT);
@@ -117,14 +120,23 @@ const TifaIFCConversie = () => {
         
         if (rel.RelatedOpeningElement?.value === openingId) {
           wallId = rel.RelatingBuildingElement?.value;
+          if (debugFirst) {
+            const wall = ifcApi.GetLine(modelID, wallId);
+            console.log("Stap 2 - Wall gevonden:", wallId, "Name:", wall?.Name?.value);
+          }
           break;
         }
       }
       
-      if (!wallId) return "";
+      if (!wallId) {
+        if (debugFirst) console.log("Geen wall gevonden voor opening:", openingId);
+        return "";
+      }
       
       // Stap 3: Zoek de groep waar de muur bij hoort via IFCRELASSIGNSTOGROUP
       const relAssignsIds = ifcApi.GetLineIDsWithType(modelID, WebIFC.IFCRELASSIGNSTOGROUP);
+      
+      if (debugFirst) console.log("Aantal IFCRELASSIGNSTOGROUP relaties:", relAssignsIds.size());
       
       for (let i = 0; i < relAssignsIds.size(); i++) {
         const relId = relAssignsIds.get(i);
@@ -140,6 +152,7 @@ const TifaIFCConversie = () => {
               if (groupId) {
                 const group = ifcApi.GetLine(modelID, groupId);
                 const groupName = group.Name?.value || group.Description?.value || "";
+                if (debugFirst) console.log("Stap 3 - Groep gevonden:", groupId, "Name:", groupName);
                 return String(groupName);
               }
             }
@@ -147,6 +160,7 @@ const TifaIFCConversie = () => {
         }
       }
       
+      if (debugFirst) console.log("Geen groep gevonden voor wall:", wallId);
       return "";
     } catch (e) {
       console.error("Error getting gevel from relations:", e);
@@ -295,7 +309,7 @@ const TifaIFCConversie = () => {
     }
   };
 
-  const getKozijnProperties = (ifcApi: WebIFC.IfcAPI, modelID: number, expressID: number): KozijnProperties => {
+  const getKozijnProperties = (ifcApi: WebIFC.IfcAPI, modelID: number, expressID: number, debugGevel: boolean = false): KozijnProperties => {
     const props: KozijnProperties = {
       bouwblok: "",
       bouwdeel: "",
@@ -340,7 +354,7 @@ const TifaIFCConversie = () => {
       } catch (e) {}
       
       // Get gevel from wall -> group relationship
-      props.gevel = getGevelFromRelations(ifcApi, modelID, expressID);
+      props.gevel = getGevelFromRelations(ifcApi, modelID, expressID, debugGevel);
       
       // Get spatial containment for bouwblok, bouwdeel, bouwlaag
       try {
@@ -404,10 +418,16 @@ const TifaIFCConversie = () => {
       
       for (let i = 0; i < windowIds.size(); i++) {
         const expressID = windowIds.get(i);
+        const debugThis = i < 3; // Debug first 3 windows
         
         // Debug first 5 windows
         if (i < 5) {
           debugLogElement(ifcApi, modelID, expressID, "Window");
+        }
+        
+        // Debug gevel lookup for first 3 windows
+        if (debugThis) {
+          console.log(`\n=== GEVEL DEBUG Window ${i + 1} (expressID: ${expressID}) ===`);
         }
         
         const familyName = getFamilyName(ifcApi, modelID, expressID);
@@ -417,7 +437,7 @@ const TifaIFCConversie = () => {
           const element = ifcApi.GetLine(modelID, expressID);
           const name = element?.Name?.value || "Onbekend";
           const key = `${familyName}`;
-          const kozijnProps = getKozijnProperties(ifcApi, modelID, expressID);
+          const kozijnProps = getKozijnProperties(ifcApi, modelID, expressID, debugThis);
           const instance: KozijnInstance = { expressId: expressID, name, properties: kozijnProps };
           
           if (kozijnMap.has(key)) {
