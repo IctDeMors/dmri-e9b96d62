@@ -302,6 +302,7 @@ export type Database = {
       panel_product_layers: {
         Row: {
           artikelgroep: string
+          artikelgroep_display: string | null
           created_at: string
           dikte: number
           id: string
@@ -311,6 +312,7 @@ export type Database = {
         }
         Insert: {
           artikelgroep: string
+          artikelgroep_display?: string | null
           created_at?: string
           dikte: number
           id?: string
@@ -320,6 +322,7 @@ export type Database = {
         }
         Update: {
           artikelgroep?: string
+          artikelgroep_display?: string | null
           created_at?: string
           dikte?: number
           id?: string
