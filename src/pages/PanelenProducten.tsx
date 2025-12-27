@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, Pencil, Trash2, Package, Building2, Euro } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, Package, Building2, Euro, Layers, ChevronUp, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -31,15 +32,36 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import SandwichPanel3D from "@/components/SandwichPanel3D";
+
+type LaagType = "Volkern" | "Isolatie";
+
+interface ArtikelData {
+  DESCRIPTION: string;
+  Artikel: string;
+  OPTIMCODE: string;
+  ZDIMSIZE: number;
+  Artikelgroep: string;
+  Laagtype: LaagType;
+}
+
+interface ProductLayer {
+  id: string;
+  position: number;
+  laagtype: string;
+  artikelgroep: string;
+  dikte: number;
+}
 
 interface PanelProduct {
   id: string;
+  name: string | null;
   dikte: number;
-  opbouw: string;
   base_price: number | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  layers?: ProductLayer[];
 }
 
 interface Company {
@@ -55,8 +77,14 @@ interface ContractPrice {
   valid_from: string;
   valid_until: string | null;
   is_active: boolean;
-  company?: Company;
-  product?: PanelProduct;
+}
+
+interface FormLayer {
+  id: string;
+  position: number;
+  laagtype: LaagType;
+  artikelgroep: string;
+  dikte: number;
 }
 
 export default function PanelenProducten() {
@@ -66,12 +94,17 @@ export default function PanelenProducten() {
   const [products, setProducts] = useState<PanelProduct[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [contractPrices, setContractPrices] = useState<ContractPrice[]>([]);
+  const [artikelen, setArtikelen] = useState<ArtikelData[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Product dialog state
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<PanelProduct | null>(null);
-  const [productForm, setProductForm] = useState({ dikte: "", opbouw: "", base_price: "" });
+  const [productForm, setProductForm] = useState<{ name: string; base_price: string; layers: FormLayer[] }>({ 
+    name: "", 
+    base_price: "", 
+    layers: [] 
+  });
   
   // Contract price dialog state
   const [priceDialogOpen, setPriceDialogOpen] = useState(false);
@@ -88,22 +121,46 @@ export default function PanelenProducten() {
 
   useEffect(() => {
     loadData();
+    loadArtikelen();
   }, []);
+
+  const loadArtikelen = async () => {
+    try {
+      const res = await fetch("/Artikelen.json");
+      const text = await res.text();
+      let cleanText = text.replace(/^\uFEFF/, '').trim();
+      if (!cleanText.startsWith('[')) {
+        cleanText = '[' + cleanText + ']';
+      }
+      const data: ArtikelData[] = JSON.parse(cleanText);
+      setArtikelen(data);
+    } catch (err) {
+      console.error("Error loading artikelen:", err);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [productsRes, companiesRes, pricesRes] = await Promise.all([
+      const [productsRes, companiesRes, pricesRes, layersRes] = await Promise.all([
         supabase.from("panel_products").select("*").order("dikte", { ascending: true }),
         supabase.from("companies").select("id, name").eq("department", "panelen").order("name"),
-        supabase.from("panel_contract_prices").select("*").order("created_at", { ascending: false })
+        supabase.from("panel_contract_prices").select("*").order("created_at", { ascending: false }),
+        supabase.from("panel_product_layers").select("*").order("position", { ascending: true })
       ]);
       
       if (productsRes.error) throw productsRes.error;
       if (companiesRes.error) throw companiesRes.error;
       if (pricesRes.error) throw pricesRes.error;
+      if (layersRes.error) throw layersRes.error;
       
-      setProducts(productsRes.data || []);
+      // Combine products with their layers
+      const productsWithLayers = (productsRes.data || []).map(product => ({
+        ...product,
+        layers: (layersRes.data || []).filter(l => l.product_id === product.id)
+      }));
+      
+      setProducts(productsWithLayers);
       setCompanies(companiesRes.data || []);
       setContractPrices(pricesRes.data || []);
     } catch (error) {
@@ -114,45 +171,162 @@ export default function PanelenProducten() {
     }
   };
 
+  // Get unique artikelgroepen per laagtype
+  const getArtikelgroepen = (laagtype: LaagType): string[] => {
+    const groepen = new Set<string>();
+    artikelen
+      .filter((a) => a.Laagtype === laagtype && a.Artikelgroep && a.Artikelgroep.trim() !== "")
+      .forEach((a) => groepen.add(a.Artikelgroep));
+    return Array.from(groepen).filter(g => g && g.trim() !== "").sort();
+  };
+
+  // Get unique diktes for an artikelgroep
+  const getDiktesForArtikelgroep = (artikelgroep: string): number[] => {
+    const diktes = new Set<number>();
+    artikelen
+      .filter((a) => a.Artikelgroep === artikelgroep && a.ZDIMSIZE > 0)
+      .forEach((a) => diktes.add(a.ZDIMSIZE));
+    return Array.from(diktes).sort((a, b) => a - b);
+  };
+
+  // Calculate total dikte from layers
+  const calculateTotalDikte = (layers: FormLayer[]): number => {
+    return layers.reduce((sum, layer) => sum + (layer.dikte || 0), 0);
+  };
+
+  // Format opbouw string from layers
+  const formatOpbouw = (layers: ProductLayer[]): string => {
+    if (!layers || layers.length === 0) return "-";
+    return layers
+      .sort((a, b) => a.position - b.position)
+      .map(l => `${l.dikte} mm ${l.artikelgroep}`)
+      .join(" / ");
+  };
+
   // Product CRUD
   const openProductDialog = (product?: PanelProduct) => {
     if (product) {
       setEditingProduct(product);
       setProductForm({
-        dikte: product.dikte.toString(),
-        opbouw: product.opbouw,
-        base_price: product.base_price?.toString() || ""
+        name: product.name || "",
+        base_price: product.base_price?.toString() || "",
+        layers: (product.layers || []).map(l => ({
+          id: l.id,
+          position: l.position,
+          laagtype: l.laagtype as LaagType,
+          artikelgroep: l.artikelgroep,
+          dikte: Number(l.dikte)
+        }))
       });
     } else {
       setEditingProduct(null);
-      setProductForm({ dikte: "", opbouw: "", base_price: "" });
+      setProductForm({ name: "", base_price: "", layers: [] });
     }
     setProductDialogOpen(true);
   };
 
+  // Layer management
+  const addLayer = () => {
+    const newLayer: FormLayer = {
+      id: `temp-${Date.now()}`,
+      position: productForm.layers.length + 1,
+      laagtype: "Volkern",
+      artikelgroep: "",
+      dikte: 0
+    };
+    setProductForm({ ...productForm, layers: [...productForm.layers, newLayer] });
+  };
+
+  const updateLayer = (id: string, field: keyof FormLayer, value: string | number) => {
+    setProductForm({
+      ...productForm,
+      layers: productForm.layers.map(l => {
+        if (l.id !== id) return l;
+        
+        // Als laagtype verandert, reset artikelgroep en dikte
+        if (field === "laagtype") {
+          return { ...l, laagtype: value as LaagType, artikelgroep: "", dikte: 0 };
+        }
+        // Als artikelgroep verandert, reset dikte
+        if (field === "artikelgroep") {
+          return { ...l, artikelgroep: value as string, dikte: 0 };
+        }
+        return { ...l, [field]: value };
+      })
+    });
+  };
+
+  const removeLayer = (id: string) => {
+    const newLayers = productForm.layers
+      .filter(l => l.id !== id)
+      .map((l, idx) => ({ ...l, position: idx + 1 }));
+    setProductForm({ ...productForm, layers: newLayers });
+  };
+
+  const moveLayer = (id: string, direction: "up" | "down") => {
+    const idx = productForm.layers.findIndex(l => l.id === id);
+    if (idx === -1) return;
+    if (direction === "up" && idx === 0) return;
+    if (direction === "down" && idx === productForm.layers.length - 1) return;
+    
+    const newLayers = [...productForm.layers];
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    [newLayers[idx], newLayers[swapIdx]] = [newLayers[swapIdx], newLayers[idx]];
+    
+    // Update positions
+    newLayers.forEach((l, i) => l.position = i + 1);
+    setProductForm({ ...productForm, layers: newLayers });
+  };
+
   const saveProduct = async () => {
-    if (!productForm.dikte || !productForm.opbouw) {
-      toast({ title: "Vul alle verplichte velden in", variant: "destructive" });
+    if (productForm.layers.length === 0) {
+      toast({ title: "Voeg minimaal één laag toe", variant: "destructive" });
+      return;
+    }
+    
+    // Validate all layers have artikelgroep and dikte
+    const invalidLayer = productForm.layers.find(l => !l.artikelgroep || l.dikte <= 0);
+    if (invalidLayer) {
+      toast({ title: "Alle lagen moeten een artikelgroep en dikte hebben", variant: "destructive" });
       return;
     }
     
     try {
-      const data = {
-        dikte: parseInt(productForm.dikte),
-        opbouw: productForm.opbouw,
+      const totalDikte = calculateTotalDikte(productForm.layers);
+      const productData = {
+        name: productForm.name || null,
+        dikte: totalDikte,
         base_price: productForm.base_price ? parseFloat(productForm.base_price) : null
       };
       
+      let productId: string;
+      
       if (editingProduct) {
-        const { error } = await supabase.from("panel_products").update(data).eq("id", editingProduct.id);
+        const { error } = await supabase.from("panel_products").update(productData).eq("id", editingProduct.id);
         if (error) throw error;
-        toast({ title: "Product bijgewerkt" });
+        productId = editingProduct.id;
+        
+        // Delete existing layers
+        await supabase.from("panel_product_layers").delete().eq("product_id", productId);
       } else {
-        const { error } = await supabase.from("panel_products").insert(data);
+        const { data, error } = await supabase.from("panel_products").insert(productData).select().single();
         if (error) throw error;
-        toast({ title: "Product toegevoegd" });
+        productId = data.id;
       }
       
+      // Insert new layers
+      const layersData = productForm.layers.map(l => ({
+        product_id: productId,
+        position: l.position,
+        laagtype: l.laagtype,
+        artikelgroep: l.artikelgroep,
+        dikte: l.dikte
+      }));
+      
+      const { error: layersError } = await supabase.from("panel_product_layers").insert(layersData);
+      if (layersError) throw layersError;
+      
+      toast({ title: editingProduct ? "Product bijgewerkt" : "Product toegevoegd" });
       setProductDialogOpen(false);
       loadData();
     } catch (error) {
@@ -267,6 +441,19 @@ export default function PanelenProducten() {
     return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(value);
   };
 
+  // Convert FormLayer to format for 3D preview
+  const getPreviewLagen = () => {
+    return productForm.layers.map(l => ({
+      id: parseInt(l.id.replace('temp-', '')) || Date.now(),
+      type: l.laagtype,
+      artikelgroep: l.artikelgroep,
+      artikel: "",
+      optimcode: "",
+      description: l.artikelgroep,
+      dikte: l.dikte
+    }));
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -314,8 +501,9 @@ export default function PanelenProducten() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-32">Naam</TableHead>
                       <TableHead className="w-20">Dikte</TableHead>
-                      <TableHead>Opbouw</TableHead>
+                      <TableHead>Opbouw (Lagen)</TableHead>
                       <TableHead className="w-32">Basisprijs</TableHead>
                       <TableHead className="w-20">Actief</TableHead>
                       <TableHead className="w-24">Acties</TableHead>
@@ -324,8 +512,18 @@ export default function PanelenProducten() {
                   <TableBody>
                     {products.map((product) => (
                       <TableRow key={product.id} className={!product.is_active ? "opacity-50" : ""}>
-                        <TableCell className="font-medium">{product.dikte} mm</TableCell>
-                        <TableCell className="text-sm">{product.opbouw}</TableCell>
+                        <TableCell className="font-medium">{product.name || "-"}</TableCell>
+                        <TableCell>{product.dikte} mm</TableCell>
+                        <TableCell className="text-sm max-w-md">
+                          <div className="flex flex-wrap gap-1">
+                            {(product.layers || []).sort((a, b) => a.position - b.position).map((layer, idx) => (
+                              <span key={layer.id} className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-muted">
+                                {layer.dikte}mm {layer.artikelgroep}
+                                {idx < (product.layers?.length || 0) - 1 && <span className="ml-1 text-muted-foreground">/</span>}
+                              </span>
+                            ))}
+                          </div>
+                        </TableCell>
                         <TableCell>{product.base_price ? formatCurrency(product.base_price) : "-"}</TableCell>
                         <TableCell>
                           <Switch checked={product.is_active} onCheckedChange={() => toggleProductActive(product)} />
@@ -344,7 +542,7 @@ export default function PanelenProducten() {
                     ))}
                     {products.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                           Geen producten gevonden. Voeg een nieuw product toe.
                         </TableCell>
                       </TableRow>
@@ -403,7 +601,7 @@ export default function PanelenProducten() {
                         <TableRow key={price.id}>
                           <TableCell className="font-medium">{company?.name || "-"}</TableCell>
                           <TableCell>{product?.dikte || "-"} mm</TableCell>
-                          <TableCell className="text-sm max-w-xs truncate">{product?.opbouw || "-"}</TableCell>
+                          <TableCell className="text-sm max-w-xs truncate">{formatOpbouw(product?.layers || [])}</TableCell>
                           <TableCell className="font-semibold text-green-600">{formatCurrency(price.price_per_m2)}</TableCell>
                           <TableCell className="text-sm">{price.valid_from}</TableCell>
                           <TableCell className="text-sm">{price.valid_until || "∞"}</TableCell>
@@ -437,42 +635,166 @@ export default function PanelenProducten() {
 
       {/* Product Dialog */}
       <Dialog open={productDialogOpen} onOpenChange={setProductDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingProduct ? "Product Bewerken" : "Nieuw Product"}</DialogTitle>
+            <DialogTitle>{editingProduct ? "Product Bewerken" : "Nieuw Standaard Product"}</DialogTitle>
+            <DialogDescription>
+              Definieer de laagopbouw van het product. Artikelgroep en dikte bepalen welke artikelen gekozen kunnen worden bij order invoer.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="dikte">Dikte (mm) *</Label>
-              <Input
-                id="dikte"
-                type="number"
-                value={productForm.dikte}
-                onChange={(e) => setProductForm({ ...productForm, dikte: e.target.value })}
-                placeholder="bijv. 48"
-              />
+          
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 py-4">
+            {/* Left: Form */}
+            <div className="lg:col-span-2 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Productnaam (optioneel)</Label>
+                  <Input
+                    id="name"
+                    value={productForm.name}
+                    onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
+                    placeholder="bijv. Standaard gevelpaneel"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="base_price">Basisprijs per m² (€)</Label>
+                  <Input
+                    id="base_price"
+                    type="number"
+                    step="0.01"
+                    value={productForm.base_price}
+                    onChange={(e) => setProductForm({ ...productForm, base_price: e.target.value })}
+                    placeholder="Optioneel"
+                  />
+                </div>
+              </div>
+
+              {/* Layers */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-2">
+                    <Layers className="h-4 w-4" />
+                    Lagen ({productForm.layers.length})
+                  </Label>
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm text-muted-foreground">
+                      Totale dikte: <strong>{calculateTotalDikte(productForm.layers)} mm</strong>
+                    </span>
+                    <Button type="button" variant="outline" size="sm" onClick={addLayer}>
+                      <Plus className="h-4 w-4 mr-1" />
+                      Laag toevoegen
+                    </Button>
+                  </div>
+                </div>
+
+                {productForm.layers.length === 0 ? (
+                  <div className="border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground">
+                    <Layers className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>Geen lagen toegevoegd</p>
+                    <p className="text-sm">Klik op "Laag toevoegen" om te beginnen</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {productForm.layers.map((layer, idx) => (
+                      <div key={layer.id} className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
+                        <div className="flex flex-col gap-1">
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-6 w-6"
+                            onClick={() => moveLayer(layer.id, "up")}
+                            disabled={idx === 0}
+                          >
+                            <ChevronUp className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-6 w-6"
+                            onClick={() => moveLayer(layer.id, "down")}
+                            disabled={idx === productForm.layers.length - 1}
+                          >
+                            <ChevronDown className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        
+                        <span className="w-6 text-center font-medium text-muted-foreground">{idx + 1}</span>
+                        
+                        <Select
+                          value={layer.laagtype}
+                          onValueChange={(value) => updateLayer(layer.id, "laagtype", value)}
+                        >
+                          <SelectTrigger className="w-28">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Volkern">Volkern</SelectItem>
+                            <SelectItem value="Isolatie">Isolatie</SelectItem>
+                          </SelectContent>
+                        </Select>
+
+                        <Select
+                          value={layer.artikelgroep}
+                          onValueChange={(value) => updateLayer(layer.id, "artikelgroep", value)}
+                        >
+                          <SelectTrigger className="flex-1">
+                            <SelectValue placeholder="Kies artikelgroep" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {getArtikelgroepen(layer.laagtype).map((groep) => (
+                              <SelectItem key={groep} value={groep}>{groep}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        <Select
+                          value={layer.dikte > 0 ? layer.dikte.toString() : ""}
+                          onValueChange={(value) => updateLayer(layer.id, "dikte", parseFloat(value))}
+                          disabled={!layer.artikelgroep}
+                        >
+                          <SelectTrigger className="w-24">
+                            <SelectValue placeholder="Dikte" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {getDiktesForArtikelgroep(layer.artikelgroep).map((dikte) => (
+                              <SelectItem key={dikte} value={dikte.toString()}>{dikte} mm</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="icon"
+                          className="text-destructive"
+                          onClick={() => removeLayer(layer.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
+
+            {/* Right: 3D Preview */}
             <div className="space-y-2">
-              <Label htmlFor="opbouw">Opbouw *</Label>
-              <Input
-                id="opbouw"
-                value={productForm.opbouw}
-                onChange={(e) => setProductForm({ ...productForm, opbouw: e.target.value })}
-                placeholder="bijv. 2 mm Renolit / 44 mm pu / 1,5 mm pvc"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="base_price">Basisprijs (€)</Label>
-              <Input
-                id="base_price"
-                type="number"
-                step="0.01"
-                value={productForm.base_price}
-                onChange={(e) => setProductForm({ ...productForm, base_price: e.target.value })}
-                placeholder="Optioneel"
-              />
+              <Label>3D Preview</Label>
+              <div className="h-64 rounded-lg overflow-hidden border bg-gradient-to-b from-slate-100 to-slate-200">
+                {productForm.layers.length > 0 ? (
+                  <SandwichPanel3D lagen={getPreviewLagen()} />
+                ) : (
+                  <div className="h-full flex items-center justify-center text-muted-foreground">
+                    Voeg lagen toe voor preview
+                  </div>
+                )}
+              </div>
             </div>
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setProductDialogOpen(false)}>Annuleren</Button>
             <Button onClick={saveProduct} className="bg-purple-600 hover:bg-purple-700">Opslaan</Button>
@@ -485,6 +807,9 @@ export default function PanelenProducten() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingPrice ? "Contractprijs Bewerken" : "Nieuwe Contractprijs"}</DialogTitle>
+            <DialogDescription>
+              Koppel een prijs per m² aan een klant voor een specifiek standaard product.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -509,7 +834,7 @@ export default function PanelenProducten() {
                 <SelectContent>
                   {products.filter(p => p.is_active).map((product) => (
                     <SelectItem key={product.id} value={product.id}>
-                      {product.dikte}mm - {product.opbouw}
+                      {product.dikte}mm - {formatOpbouw(product.layers || [])}
                     </SelectItem>
                   ))}
                 </SelectContent>

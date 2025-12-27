@@ -299,6 +299,44 @@ export type Database = {
           },
         ]
       }
+      panel_product_layers: {
+        Row: {
+          artikelgroep: string
+          created_at: string
+          dikte: number
+          id: string
+          laagtype: string
+          position: number
+          product_id: string
+        }
+        Insert: {
+          artikelgroep: string
+          created_at?: string
+          dikte: number
+          id?: string
+          laagtype: string
+          position: number
+          product_id: string
+        }
+        Update: {
+          artikelgroep?: string
+          created_at?: string
+          dikte?: number
+          id?: string
+          laagtype?: string
+          position?: number
+          product_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "panel_product_layers_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "panel_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       panel_products: {
         Row: {
           base_price: number | null
@@ -306,7 +344,7 @@ export type Database = {
           dikte: number
           id: string
           is_active: boolean
-          opbouw: string
+          name: string | null
           updated_at: string
         }
         Insert: {
@@ -315,7 +353,7 @@ export type Database = {
           dikte: number
           id?: string
           is_active?: boolean
-          opbouw: string
+          name?: string | null
           updated_at?: string
         }
         Update: {
@@ -324,7 +362,7 @@ export type Database = {
           dikte?: number
           id?: string
           is_active?: boolean
-          opbouw?: string
+          name?: string | null
           updated_at?: string
         }
         Relationships: []
