@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowLeft, LayoutDashboard, Calendar, ClipboardList, Users } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, Calendar, ClipboardList, Users, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -35,6 +35,14 @@ const pages = [
     icon: Users,
     path: "/panelen/crm",
     color: "bg-pink-500/10 text-pink-600 dark:text-pink-400",
+  },
+  {
+    id: "producten",
+    name: "Producten & Prijzen",
+    description: "Standaard producten en contractprijzen beheren",
+    icon: Package,
+    path: "/panelen/producten",
+    color: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
   },
 ];
 

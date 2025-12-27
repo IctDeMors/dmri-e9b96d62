@@ -248,6 +248,87 @@ export type Database = {
           },
         ]
       }
+      panel_contract_prices: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          price_per_m2: number
+          product_id: string
+          updated_at: string
+          valid_from: string
+          valid_until: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          price_per_m2: number
+          product_id: string
+          updated_at?: string
+          valid_from?: string
+          valid_until?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          price_per_m2?: number
+          product_id?: string
+          updated_at?: string
+          valid_from?: string
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "panel_contract_prices_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "panel_contract_prices_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "panel_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      panel_products: {
+        Row: {
+          base_price: number | null
+          created_at: string
+          dikte: number
+          id: string
+          is_active: boolean
+          opbouw: string
+          updated_at: string
+        }
+        Insert: {
+          base_price?: number | null
+          created_at?: string
+          dikte: number
+          id?: string
+          is_active?: boolean
+          opbouw: string
+          updated_at?: string
+        }
+        Update: {
+          base_price?: number | null
+          created_at?: string
+          dikte?: number
+          id?: string
+          is_active?: boolean
+          opbouw?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

@@ -15,6 +15,7 @@ import PanelenDashboard from "./pages/PanelenDashboard";
 import PanelenOrders from "./pages/PanelenOrders";
 import PanelenTimeline from "./pages/PanelenTimeline";
 import PanelenCRM from "./pages/PanelenCRM";
+import PanelenProducten from "./pages/PanelenProducten";
 import UnitsIndex from "./pages/UnitsIndex";
 import UnitsCRM from "./pages/UnitsCRM";
 import MyCubyIndex from "./pages/MyCubyIndex";
@@ -45,6 +46,7 @@ const App = () => (
           <Route path="/panelen/orders" element={<PanelenOrders />} />
           <Route path="/panelen/timeline" element={<PanelenTimeline />} />
           <Route path="/panelen/crm" element={<PanelenCRM />} />
+          <Route path="/panelen/producten" element={<PanelenProducten />} />
           <Route path="/units" element={<UnitsIndex />} />
           <Route path="/units/crm" element={<UnitsCRM />} />
           <Route path="/mycuby" element={<MyCubyIndex />} />
