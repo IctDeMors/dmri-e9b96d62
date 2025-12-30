@@ -243,14 +243,14 @@ const TifaIFCConversie = () => {
   const normalizeGevelLabel = (groupName: string): string => {
     const raw = (groupName || "").trim();
     const n = raw.toLowerCase();
-    if (!n) return "";
 
     if (n.includes("voor")) return "Voorgevel";
     if (n.includes("achter")) return "Achtergevel";
     if (n.includes("link") || n.includes("links")) return "Linker zijgevel";
     if (n.includes("recht") || n.includes("rechts")) return "Rechter zijgevel";
 
-    return "";
+    // Fallback: als geen match, default naar Voorgevel
+    return "Voorgevel";
   };
 
   // Rotatie waarden op basis van gevel (vaste waarden)
