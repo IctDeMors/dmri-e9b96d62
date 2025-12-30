@@ -253,6 +253,22 @@ const TifaIFCConversie = () => {
     return "";
   };
 
+  // Rotatie waarden op basis van gevel (vaste waarden)
+  const getRotatieFromGevel = (gevel: string): { x: string; y: string; z: string } => {
+    switch (gevel) {
+      case "Voorgevel":
+        return { x: "0", y: "0", z: "0" };
+      case "Achtergevel":
+        return { x: "1", y: "0", z: "0" };
+      case "Linker zijgevel":
+        return { x: "0", y: "-1", z: "0" };
+      case "Rechter zijgevel":
+        return { x: "0", y: "1", z: "0" };
+      default:
+        return { x: "0", y: "0", z: "0" };
+    }
+  };
+
   const getFamilyName = (ifcApi: WebIFC.IfcAPI, modelID: number, expressID: number): string => {
     try {
       const element = ifcApi.GetLine(modelID, expressID, true);
@@ -425,6 +441,18 @@ const TifaIFCConversie = () => {
       }
       
       // Get transform data using GetFlatMesh (same method as TifaIFC.tsx)
+      // Get gevel from wall -> group relationship
+      const gevelGroep = getGevelFromRelations(ifcApi, modelID, expressID, debugGevel);
+      props.gevelGroep = gevelGroep;
+      props.gevel = normalizeGevelLabel(gevelGroep) || gevelGroep;
+      
+      // Rotatie waarden op basis van gevel (vaste waarden)
+      const rotatie = getRotatieFromGevel(props.gevel);
+      props.rotatieVectorX = rotatie.x;
+      props.rotatieVectorY = rotatie.y;
+      props.rotatieVectorZ = rotatie.z;
+      
+      // Get position data using GetFlatMesh
       try {
         const mesh = ifcApi.GetFlatMesh(modelID, expressID);
         if (mesh.geometries.size() > 0) {
@@ -433,16 +461,8 @@ const TifaIFCConversie = () => {
           props.projectX = transformData.x;
           props.projectY = transformData.y;
           props.projectZ = transformData.z;
-          props.rotatieVectorX = transformData.rotX;
-          props.rotatieVectorY = transformData.rotY;
-          props.rotatieVectorZ = transformData.rotZ;
         }
       } catch (e) {}
-      
-      // Get gevel from wall -> group relationship
-      const gevelGroep = getGevelFromRelations(ifcApi, modelID, expressID, debugGevel);
-      props.gevelGroep = gevelGroep;
-      props.gevel = normalizeGevelLabel(gevelGroep) || gevelGroep;
       
       // Get spatial containment for bouwblok, bouwdeel, bouwlaag
       try {
