@@ -24,7 +24,7 @@ const signupSchema = z.object({
 export default function Auth() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, signIn, signUp } = useAuth();
+  const { user, signIn, signUp, resetPassword } = useAuth();
   const { toast } = useToast();
   
   const [isLoading, setIsLoading] = useState(false);
@@ -33,6 +33,8 @@ export default function Auth() {
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupFullName, setSignupFullName] = useState('');
+  const [resetEmail, setResetEmail] = useState('');
+  const [showResetForm, setShowResetForm] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const from = (location.state as { from?: Location })?.from?.pathname || '/';
@@ -134,6 +136,98 @@ export default function Auth() {
     setIsLoading(false);
   };
 
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrors({});
+    
+    const validation = z.object({
+      email: z.string().email('Ongeldig email adres'),
+    }).safeParse({ email: resetEmail });
+
+    if (!validation.success) {
+      setErrors({ reset_email: validation.error.errors[0].message });
+      return;
+    }
+
+    setIsLoading(true);
+    
+    const { error } = await resetPassword(resetEmail);
+    
+    if (error) {
+      toast({
+        title: 'Fout',
+        description: 'Er is een fout opgetreden. Probeer het later opnieuw.',
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Email verzonden',
+        description: 'Check je inbox voor de wachtwoord reset link.',
+      });
+      setShowResetForm(false);
+      setResetEmail('');
+    }
+    
+    setIsLoading(false);
+  };
+
+  if (showResetForm) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl font-bold">Wachtwoord resetten</CardTitle>
+            <CardDescription>
+              Vul je email adres in om een reset link te ontvangen
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="reset-email">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="reset-email"
+                    type="email"
+                    placeholder="je@email.nl"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    className="pl-10"
+                    disabled={isLoading}
+                  />
+                </div>
+                {errors.reset_email && (
+                  <p className="text-sm text-destructive">{errors.reset_email}</p>
+                )}
+              </div>
+              
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Bezig met verzenden...
+                  </>
+                ) : (
+                  'Verstuur reset link'
+                )}
+              </Button>
+              
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => setShowResetForm(false)}
+              >
+                Terug naar inloggen
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
       <Card className="w-full max-w-md">
@@ -199,6 +293,15 @@ export default function Auth() {
                   ) : (
                     'Inloggen'
                   )}
+                </Button>
+                
+                <Button
+                  type="button"
+                  variant="link"
+                  className="w-full text-sm"
+                  onClick={() => setShowResetForm(true)}
+                >
+                  Wachtwoord vergeten?
                 </Button>
               </form>
             </TabsContent>

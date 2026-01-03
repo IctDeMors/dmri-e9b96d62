@@ -137,6 +137,22 @@ export function useAuth() {
     return { error };
   };
 
+  const resetPassword = async (email: string) => {
+    const redirectUrl = `${window.location.origin}/auth/reset-password`;
+    
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: redirectUrl,
+    });
+    return { error };
+  };
+
+  const updatePassword = async (newPassword: string) => {
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+    return { error };
+  };
+
   const isAdmin = roles.some(r => r.role === 'admin');
 
   const hasDepartmentAccess = (department: 'algemeen' | 'tifa' | 'panelen' | 'units' | 'mycuby') => {
@@ -156,6 +172,8 @@ export function useAuth() {
     signIn,
     signUp,
     signOut,
+    resetPassword,
+    updatePassword,
     refetch: () => user && fetchUserData(user.id),
   };
 }

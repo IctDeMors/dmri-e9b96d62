@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Home from "./pages/Home";
 import Auth from "./pages/Auth";
+import ResetPassword from "./pages/ResetPassword";
 import Settings from "./pages/Settings";
 import GebruikersBeheer from "./pages/GebruikersBeheer";
 import Algemeen from "./pages/Algemeen";
@@ -39,6 +40,7 @@ const App = () => (
         <Routes>
           {/* Public routes */}
           <Route path="/auth" element={<Auth />} />
+          <Route path="/auth/reset-password" element={<ResetPassword />} />
           
           {/* Protected routes */}
           <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
