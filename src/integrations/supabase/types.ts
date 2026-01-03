@@ -248,6 +248,92 @@ export type Database = {
           },
         ]
       }
+      narrowcast_channels: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          slide_duration: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          slide_duration?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          slide_duration?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      narrowcast_items: {
+        Row: {
+          channel_id: string
+          content_text: string | null
+          content_type: string
+          content_url: string | null
+          created_at: string
+          duration: number
+          ends_at: string | null
+          id: string
+          is_active: boolean
+          position: number
+          starts_at: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          channel_id: string
+          content_text?: string | null
+          content_type: string
+          content_url?: string | null
+          created_at?: string
+          duration?: number
+          ends_at?: string | null
+          id?: string
+          is_active?: boolean
+          position?: number
+          starts_at?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          channel_id?: string
+          content_text?: string | null
+          content_type?: string
+          content_url?: string | null
+          created_at?: string
+          duration?: number
+          ends_at?: string | null
+          id?: string
+          is_active?: boolean
+          position?: number
+          starts_at?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "narrowcast_items_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "narrowcast_channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       panel_contract_prices: {
         Row: {
           company_id: string

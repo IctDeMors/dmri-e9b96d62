@@ -27,6 +27,7 @@ import MyCubyProjecten from "./pages/MyCubyProjecten";
 import MyCubyProjectDetail from "./pages/MyCubyProjectDetail";
 import MyCubyModellen from "./pages/MyCubyModellen";
 import MyCubyCRM from "./pages/MyCubyCRM";
+import NarrowcastPresentation from "./pages/NarrowcastPresentation";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -41,6 +42,7 @@ const App = () => (
           {/* Public routes */}
           <Route path="/auth" element={<Auth />} />
           <Route path="/auth/reset-password" element={<ResetPassword />} />
+          <Route path="/narrowcast/:channelId" element={<NarrowcastPresentation />} />
           
           {/* Protected routes */}
           <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
